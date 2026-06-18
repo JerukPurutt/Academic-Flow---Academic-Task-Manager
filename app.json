@@ -4,8 +4,8 @@
     "slug": "academic-task-manager",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./src/assets/react.svg",
-    "userInterfaceStyle": "dark",
+    "icon": "./src/assets/icon.png",
+    "userInterfaceStyle": "automatic",
     "splash": {
       "backgroundColor": "#0b0b14"
     },
@@ -14,7 +14,11 @@
     },
     "android": {
       "backgroundColor": "#0b0b14",
-      "package": "com.jerukpurutt.academictaskmanager"
+      "package": "com.jerukpurutt.academictaskmanager",
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/icon.png",
+        "backgroundColor": "#0b0b14"
+      }
     },
     "extra": {
       "eas": {
