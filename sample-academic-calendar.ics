@@ -1,0 +1,25 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//ITATS//Academic Calendar//ID
+BEGIN:VEVENT
+UID:itats-exam-101
+DTSTART:20260619T080000
+DTEND:20260619T100000
+SUMMARY:Ujian Akhir Semester Basprog
+DESCRIPTION:UAS Bahasa Pemrograman Terstruktur di Lab Komputer 2. Sifat ujian tutup buku.
+END:VEVENT
+BEGIN:VEVENT
+UID:itats-task-102
+DTSTART:20260621T235900
+DTEND:20260622T010000
+SUMMARY:Laporan Akhir Praktikum Jarkom
+DESCRIPTION:Pengumpulan laporan modul 1-5 di portal akademik ITATS. Format PDF maksimum 10MB.
+END:VEVENT
+BEGIN:VEVENT
+UID:itats-seminar-103
+DTSTART:20260625T130000
+DTEND:20260625T153000
+SUMMARY:Seminar Proposal Skripsi
+DESCRIPTION:Seminar proposal ruang sidang utama. Memakai jas almamater lengkap.
+END:VEVENT
+END:VCALENDAR
