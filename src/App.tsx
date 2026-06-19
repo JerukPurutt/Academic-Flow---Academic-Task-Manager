@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { 
   StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Modal, 
-  KeyboardAvoidingView, Platform, StatusBar 
+  KeyboardAvoidingView, Platform, StatusBar, TouchableWithoutFeedback 
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ import type { Task, Category } from './context/AppContext';
 import { Toast } from './components/Toast';
 import { ValidationError } from './components/ValidationError';
 import { ConfirmModal } from './components/ConfirmModal';
+import { TaskDetailModal } from './components/TaskDetailModal';
 import { theme } from './theme';
 import type { ThemeColors } from './theme';
 
@@ -74,6 +75,10 @@ function AppContent() {
 
   // Custom Confirm Modal configuration
   const [confirmConfig, setConfirmConfig] = useState<{ title: string; message: string; action: () => void } | null>(null);
+
+  // Task Detail state
+  const [selectedTaskIdForDetail, setSelectedTaskIdForDetail] = useState<string | null>(null);
+  const selectedTaskForDetail = tasks.find(t => t.id === selectedTaskIdForDetail) || null;
 
   // Inline validation errors
   const [titleError, setTitleError] = useState('');
@@ -373,7 +378,7 @@ function AppContent() {
       </View>
 
       {/* TASK LIST */}
-      <ScrollView style={styles.taskList} contentContainerStyle={styles.taskListContent}>
+      <ScrollView style={styles.taskList} contentContainerStyle={styles.taskListContent} keyboardShouldPersistTaps="handled">
         {isLoading ? (
           <View style={styles.centerContainer}>
             <Text style={styles.infoText}>Memuat tugas...</Text>
@@ -425,7 +430,11 @@ function AppContent() {
                 </TouchableOpacity>
 
                 {/* Content */}
-                <View style={styles.cardContent}>
+                <TouchableOpacity 
+                  style={styles.cardContent}
+                  onPress={() => setSelectedTaskIdForDetail(task.id)}
+                  activeOpacity={0.7}
+                >
                   <Text style={[
                     styles.taskCardTitle,
                     task.completed && styles.taskCardTitleCompleted
@@ -466,7 +475,7 @@ function AppContent() {
                       </Text>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
 
                 {/* Actions */}
                 <View style={styles.actionsWrapper}>
@@ -509,15 +518,21 @@ function AppContent() {
       {/* QUICK ADD MODAL */}
       <Modal
         visible={isModalOpen}
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         onRequestClose={handleCloseModal}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        <TouchableOpacity
           style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={handleCloseModal}
         >
-          <View style={styles.modalContainer}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ width: '100%', justifyContent: 'flex-end', flex: 1 }}
+          >
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContainer}>
             {/* Header */}
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderTitleRow}>
@@ -532,7 +547,7 @@ function AppContent() {
             </View>
 
             {/* Form Fields */}
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
               {/* Task Title */}
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Judul Tugas / Pengingat *</Text>
@@ -658,21 +673,29 @@ function AppContent() {
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        </TouchableWithoutFeedback>
+       </KeyboardAvoidingView>
+      </TouchableOpacity>
+    </Modal>
 
       {/* CATEGORY MANAGEMENT MODAL */}
       <Modal
         visible={isCategoryModalOpen}
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         onRequestClose={() => setIsCategoryModalOpen(false)}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        <TouchableOpacity
           style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setIsCategoryModalOpen(false)}
         >
-          <View style={styles.modalContainer}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ width: '100%', justifyContent: 'flex-end', flex: 1 }}
+          >
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContainer}>
             {/* Header */}
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderTitleRow}>
@@ -745,7 +768,7 @@ function AppContent() {
 
             {/* List */}
             <Text style={[styles.formLabel, { marginTop: 10, marginBottom: 8 }]}>Daftar Kategori Terdaftar</Text>
-            <ScrollView style={styles.categoryManageList}>
+            <ScrollView style={styles.categoryManageList} keyboardShouldPersistTaps="handled">
               {categories.map(cat => (
                 <View key={cat.id} style={styles.catManageRow}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
@@ -778,8 +801,10 @@ function AppContent() {
                 </View>
               ))}
             </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
+            </View>
+          </TouchableWithoutFeedback>
+         </KeyboardAvoidingView>
+        </TouchableOpacity>
       </Modal>
 
       {/* Date/Time Picker Component */}
@@ -792,6 +817,34 @@ function AppContent() {
           onChange={onDatePickerChange}
         />
       )}
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        visible={selectedTaskIdForDetail !== null}
+        task={selectedTaskForDetail}
+        categories={categories}
+        colors={colors}
+        isDark={isDark}
+        onClose={() => setSelectedTaskIdForDetail(null)}
+        onEdit={(task) => {
+          setSelectedTaskIdForDetail(null);
+          handleOpenEditModal(task);
+        }}
+        onDelete={(task) => {
+          setSelectedTaskIdForDetail(null);
+          setConfirmConfig({
+            title: 'Hapus Pengingat?',
+            message: `Apakah Anda yakin ingin menghapus tugas "${task.title}"? Tindakan ini tidak dapat dibatalkan.`,
+            action: () => {
+              deleteTask(task.id);
+              setConfirmConfig(null);
+            }
+          });
+        }}
+        onToggleComplete={(task) => {
+          updateTask(task.id, { completed: !task.completed });
+        }}
+      />
 
       {/* Confirm Action Modal */}
       <ConfirmModal
@@ -810,6 +863,7 @@ function AppContent() {
           type={toast.type}
           onClose={hideToast}
           colors={colors}
+          isDark={isDark}
         />
       )}
     </View>
