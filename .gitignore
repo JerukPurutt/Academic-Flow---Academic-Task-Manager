@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Expo
+.expo/
+*.jks
+*.p12
+*.key
+*.mobileprovision

@@ -95,7 +95,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         onPress={onClose}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
           style={{ width: '100%', justifyContent: 'flex-end', flex: 1 }}
         >
           <TouchableWithoutFeedback>

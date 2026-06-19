@@ -528,7 +528,7 @@ function AppContent() {
           onPress={handleCloseModal}
         >
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior="padding"
             style={{ width: '100%', justifyContent: 'flex-end', flex: 1 }}
           >
             <TouchableWithoutFeedback>
@@ -691,7 +691,7 @@ function AppContent() {
           onPress={() => setIsCategoryModalOpen(false)}
         >
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior="padding"
             style={{ width: '100%', justifyContent: 'flex-end', flex: 1 }}
           >
             <TouchableWithoutFeedback>
