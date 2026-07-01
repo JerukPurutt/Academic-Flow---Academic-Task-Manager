@@ -5,14 +5,16 @@ import {
   useWindowDimensions, RefreshControl
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
+import { Feather, FontAwesome5 } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { AppProvider, useApp } from './context/AppContext';
 import type { Task, Category, TaskPriority } from './context/AppContext';
 import { Toast } from './components/Toast';
 import { ValidationError } from './components/ValidationError';
 import { ConfirmModal } from './components/ConfirmModal';
+import { BackgroundTexture } from './components/BackgroundTexture';
 import { TaskDetailModal } from './components/TaskDetailModal';
+import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from './theme';
 import type { ThemeColors } from './theme';
 
@@ -67,6 +69,7 @@ function AppContent() {
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedPriority, setSelectedPriority] = useState<'all' | TaskPriority>('all');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
 
   const toggleSearch = () => {
@@ -114,9 +117,11 @@ function AppContent() {
 
   // Filter Tasks
   const filteredTasks = tasks.filter(task => {
-    const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesCategory = selectedCategory === 'all' || task.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesPriority = selectedPriority === 'all' || task.priority === selectedPriority;
+    return matchesSearch && matchesCategory && matchesPriority;
   });
 
   const handleOpenCreateModal = () => {
@@ -311,86 +316,227 @@ function AppContent() {
     <View style={styles.container}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} translucent backgroundColor="transparent" />
       
+      {/* Background watermark texture */}
+      <BackgroundTexture isDark={isDark} />
+      
       <View style={isLargeScreen ? styles.desktopContainer : styles.mobileContainer}>
         {/* SIDEBAR FOR DESKTOP */}
         {isLargeScreen && (
           <View style={styles.sidebar}>
-            <View style={styles.sidebarHeader}>
-              <Text style={styles.sidebarTitle}>Academic Flow</Text>
-              <Text style={styles.sidebarSubtitle}>{getFormattedDate()}</Text>
-              
-              {/* Sync Status Badge in Sidebar */}
-              <TouchableOpacity 
-                onPress={triggerManualSync} 
-                activeOpacity={0.7} 
-                style={[
-                  styles.syncBadge,
-                  syncStatus === 'online' ? styles.syncBadgeOnline :
-                  syncStatus === 'offline' ? styles.syncBadgeOffline :
-                  syncStatus === 'connecting' ? styles.syncBadgeConnecting : styles.syncBadgeConnecting,
-                  { marginTop: 12, alignSelf: 'flex-start' }
-                ]}
-              >
-                <View style={[
-                  styles.syncDot,
-                  syncStatus === 'online' ? styles.syncDotOnline :
-                  syncStatus === 'offline' ? styles.syncDotOffline :
-                  syncStatus === 'connecting' ? styles.syncDotConnecting : styles.syncDotConnecting
-                ]} />
-                <Text style={styles.syncBadgeText}>
-                  {syncStatus === 'online' ? 'Online' :
-                   syncStatus === 'offline' ? 'Offline' : 'Menghubungkan...'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Aksi Tambah Tugas Utama */}
-            <TouchableOpacity 
-              style={styles.sidebarAddButton} 
-              onPress={handleOpenCreateModal}
-              activeOpacity={0.8}
-            >
-              <Feather name="plus" size={16} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={styles.sidebarAddButtonText}>Tugas Baru</Text>
-            </TouchableOpacity>
-
-            {/* Statistik Panel */}
-            <View style={styles.sidebarStats}>
-              <Text style={styles.sidebarSectionLabel}>Statistik Tugas</Text>
-              <View style={styles.sidebarStatsRow}>
-                <View style={styles.sidebarStatCol}>
-                  <Text style={styles.sidebarStatNum}>{activeTasks}</Text>
-                  <Text style={styles.sidebarStatLabel}>Aktif</Text>
+            {/* FIXED TOP SECTION */}
+            <View style={styles.sidebarFixedTop}>
+              <View style={styles.sidebarHeader}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                  <Text style={styles.sidebarTitle}>Academic Flow</Text>
+                  <TouchableOpacity 
+                    onPress={toggleTheme} 
+                    style={styles.sidebarThemeIconBtn}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name={isDark ? "sun" : "moon"} size={14} color={colors.textPrimary} />
+                  </TouchableOpacity>
                 </View>
-                <View style={styles.sidebarStatDivider} />
-                <View style={styles.sidebarStatCol}>
-                  <Text style={[styles.sidebarStatNum, { color: colors.success }]}>{completedTasks}</Text>
-                  <Text style={styles.sidebarStatLabel}>Selesai</Text>
-                </View>
+                <Text style={styles.sidebarSubtitle}>{getFormattedDate()}</Text>
+                
+                {/* Sync Status Badge in Sidebar */}
+                <TouchableOpacity 
+                  onPress={triggerManualSync} 
+                  activeOpacity={0.7} 
+                  style={[
+                    styles.syncBadge,
+                    syncStatus === 'online' ? styles.syncBadgeOnline :
+                    syncStatus === 'offline' ? styles.syncBadgeOffline :
+                    syncStatus === 'connecting' ? styles.syncBadgeConnecting : styles.syncBadgeConnecting,
+                    { marginTop: 12, alignSelf: 'flex-start' }
+                  ]}
+                >
+                  <View style={[
+                    styles.syncDot,
+                    syncStatus === 'online' ? styles.syncDotOnline :
+                    syncStatus === 'offline' ? styles.syncDotOffline :
+                    syncStatus === 'connecting' ? styles.syncDotConnecting : styles.syncDotConnecting
+                  ]} />
+                  <Text style={styles.syncBadgeText}>
+                    {syncStatus === 'online' ? 'Online' :
+                     syncStatus === 'offline' ? 'Offline' : 'Menghubungkan...'}
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </View>
 
-            {/* Tombol Kelola Kategori */}
-            <TouchableOpacity 
-              style={styles.sidebarManageCatBtn} 
-              onPress={handleOpenCategoryModal}
-              activeOpacity={0.8}
-            >
-              <Feather name="settings" size={13} color={colors.textSecondary} style={{ marginRight: 6 }} />
-              <Text style={styles.sidebarManageCatText}>Kelola Kategori</Text>
-            </TouchableOpacity>
-
-            {/* Tombol Ganti Tema di Footer */}
-            <View style={styles.sidebarFooter}>
+              {/* Aksi Tambah Tugas Utama */}
               <TouchableOpacity 
-                onPress={toggleTheme} 
-                style={styles.sidebarThemeBtn}
+                style={[styles.sidebarAddButton, { overflow: 'hidden' }]} 
+                onPress={handleOpenCreateModal}
                 activeOpacity={0.8}
               >
-                <Feather name={isDark ? "sun" : "moon"} size={14} color={colors.textSecondary} style={{ marginRight: 6 }} />
-                <Text style={styles.sidebarThemeText}>{isDark ? 'Mode Terang' : 'Mode Gelap'}</Text>
+                <LinearGradient
+                  colors={['#4f46e5', '#6366f1']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Feather name="plus" size={16} color="#fff" style={{ marginRight: 6, zIndex: 1 }} />
+                <Text style={[styles.sidebarAddButtonText, { zIndex: 1 }]}>Tugas Baru</Text>
               </TouchableOpacity>
+
+              {/* Statistik Panel */}
+              <View style={styles.sidebarStats}>
+                <Text style={styles.sidebarSectionLabel}>Statistik Tugas</Text>
+                <View style={styles.sidebarStatsRow}>
+                  <View style={styles.sidebarStatCol}>
+                    <Text style={styles.sidebarStatNum}>{activeTasks}</Text>
+                    <Text style={styles.sidebarStatLabel}>Aktif</Text>
+                  </View>
+                  <View style={styles.sidebarStatDivider} />
+                  <View style={styles.sidebarStatCol}>
+                    <Text style={[styles.sidebarStatNum, { color: colors.success }]}>{completedTasks}</Text>
+                    <Text style={styles.sidebarStatLabel}>Selesai</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Tombol Kelola Kategori */}
+              <TouchableOpacity 
+                style={styles.sidebarManageCatBtn} 
+                onPress={handleOpenCategoryModal}
+                activeOpacity={0.8}
+              >
+                <Feather name="settings" size={13} color={colors.textSecondary} style={{ marginRight: 6 }} />
+                <Text style={styles.sidebarManageCatText}>Kelola Kategori</Text>
+              </TouchableOpacity>
+
+              {/* Sidebar Divider */}
+              <View style={styles.sidebarDividerLine} />
             </View>
+
+            {/* SCROLLABLE BOTTOM SECTION FOR FILTERS */}
+            <ScrollView 
+              style={{ flex: 1 }}
+              contentContainerStyle={styles.sidebarScrollableContent}
+              showsVerticalScrollIndicator={false}
+            >
+
+            {/* FILTER URGENSI (SIDEBAR) */}
+            <View style={styles.sidebarFilterSection}>
+              <Text style={styles.sidebarSectionLabel}>Tingkat Urgensi</Text>
+              
+              <TouchableOpacity
+                onPress={() => setSelectedPriority('all')}
+                style={[
+                  styles.sidebarFilterItem,
+                  selectedPriority === 'all' && styles.sidebarFilterItemActive
+                ]}
+                activeOpacity={0.7}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Feather name="layers" size={12} color={selectedPriority === 'all' ? colors.primary : colors.textSecondary} />
+                  <Text style={[
+                    styles.sidebarFilterItemText,
+                    selectedPriority === 'all' && styles.sidebarFilterItemTextActive
+                  ]}>Semua Urgensi</Text>
+                </View>
+                <View style={styles.sidebarFilterCountBadge}>
+                  <Text style={styles.sidebarFilterCountText}>
+                    {tasks.filter(t => !t.completed).length}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {([
+                { name: 'penting', label: 'Penting', color: '#ef4444' },
+                { name: 'sedang', label: 'Sedang', color: '#f59e0b' },
+                { name: 'santai', label: 'Santai', color: '#10b981' }
+              ] as const).map(p => {
+                const count = tasks.filter(t => t.priority === p.name && !t.completed).length;
+                const isSelected = selectedPriority === p.name;
+                return (
+                  <TouchableOpacity
+                    key={p.name}
+                    onPress={() => setSelectedPriority(p.name)}
+                    style={[
+                      styles.sidebarFilterItem,
+                      isSelected && styles.sidebarFilterItemActive
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={[styles.sidebarCatDot, { backgroundColor: p.color }]} />
+                      <Text style={[
+                        styles.sidebarFilterItemText,
+                        isSelected && styles.sidebarFilterItemTextActive
+                      ]}>
+                        {p.label}
+                      </Text>
+                    </View>
+                    <View style={styles.sidebarFilterCountBadge}>
+                      <Text style={styles.sidebarFilterCountText}>{count}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* FILTER KATEGORI (SIDEBAR) */}
+            <View style={styles.sidebarFilterSection}>
+              <Text style={styles.sidebarSectionLabel}>Kategori</Text>
+              
+              <TouchableOpacity
+                onPress={() => setSelectedCategory('all')}
+                style={[
+                  styles.sidebarFilterItem,
+                  selectedCategory === 'all' && styles.sidebarFilterItemActive
+                ]}
+                activeOpacity={0.7}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Feather name="grid" size={12} color={selectedCategory === 'all' ? colors.primary : colors.textSecondary} />
+                  <Text style={[
+                    styles.sidebarFilterItemText,
+                    selectedCategory === 'all' && styles.sidebarFilterItemTextActive
+                  ]}>Semua Kategori</Text>
+                </View>
+                <View style={styles.sidebarFilterCountBadge}>
+                  <Text style={styles.sidebarFilterCountText}>{tasks.filter(t => !t.completed).length}</Text>
+                </View>
+              </TouchableOpacity>
+
+              <ScrollView style={{ maxHeight: 180 }} showsVerticalScrollIndicator={false}>
+                {categories.map(cat => {
+                  const count = tasks.filter(t => t.category === cat.name && !t.completed).length;
+                  const isSelected = selectedCategory === cat.name;
+                  return (
+                    <TouchableOpacity
+                      key={cat.id}
+                      onPress={() => setSelectedCategory(cat.name)}
+                      style={[
+                        styles.sidebarFilterItem,
+                        isSelected && styles.sidebarFilterItemActive
+                      ]}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                        <View style={[styles.sidebarCatDot, { backgroundColor: cat.color }]} />
+                        <Text 
+                          numberOfLines={1} 
+                          style={[
+                            styles.sidebarFilterItemText,
+                            isSelected && styles.sidebarFilterItemTextActive
+                          ]}
+                        >
+                          {cat.name}
+                        </Text>
+                      </View>
+                      <View style={styles.sidebarFilterCountBadge}>
+                        <Text style={styles.sidebarFilterCountText}>{count}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            <View style={{ height: 20 }} />
+            </ScrollView>
           </View>
         )}
 
@@ -484,33 +630,79 @@ function AppContent() {
             )}
 
             {/* Category Filter Horizontal Scroll */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryFilterRow}>
-              <TouchableOpacity 
-                onPress={() => setSelectedCategory('all')} 
-                style={[styles.filterPill, selectedCategory === 'all' && styles.filterPillActive]}
-              >
-                <Text style={[styles.filterPillText, selectedCategory === 'all' && styles.filterPillTextActive]}>
-                  Semua
-                </Text>
-              </TouchableOpacity>
-              {categories.map(cat => (
-                <TouchableOpacity 
-                  key={cat.id} 
-                  onPress={() => setSelectedCategory(cat.name)} 
-                  style={[
-                    styles.filterPill, 
-                    selectedCategory === cat.name && { backgroundColor: cat.color }
-                  ]}
+            {!isLargeScreen && (
+              <View style={{ gap: 8, marginTop: 8 }}>
+                {/* Category Row */}
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false} 
+                  contentContainerStyle={{ gap: 6 }}
                 >
-                  <Text style={[
-                    styles.filterPillText, 
-                    selectedCategory === cat.name && styles.filterPillTextActive
-                  ]}>
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                  <TouchableOpacity 
+                    onPress={() => setSelectedCategory('all')} 
+                    style={[styles.filterPill, selectedCategory === 'all' && styles.filterPillActive]}
+                  >
+                    <Text style={[styles.filterPillText, selectedCategory === 'all' && styles.filterPillTextActive]}>
+                      Semua Kategori
+                    </Text>
+                  </TouchableOpacity>
+                  {categories.map(cat => (
+                    <TouchableOpacity 
+                      key={cat.id} 
+                      onPress={() => setSelectedCategory(cat.name)} 
+                      style={[
+                        styles.filterPill, 
+                        selectedCategory === cat.name && { backgroundColor: cat.color, borderColor: cat.color }
+                      ]}
+                    >
+                      <Text style={[
+                        styles.filterPillText, 
+                        selectedCategory === cat.name && styles.filterPillTextActive
+                      ]}>
+                        {cat.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {/* Urgensi Row */}
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false} 
+                  contentContainerStyle={{ gap: 6 }}
+                >
+                  <TouchableOpacity 
+                    onPress={() => setSelectedPriority('all')} 
+                    style={[styles.filterPill, selectedPriority === 'all' && styles.filterPillActive]}
+                  >
+                    <Text style={[styles.filterPillText, selectedPriority === 'all' && styles.filterPillTextActive]}>
+                      Semua Urgensi
+                    </Text>
+                  </TouchableOpacity>
+                  {([
+                    { name: 'penting', label: 'Penting', color: '#ef4444' },
+                    { name: 'sedang', label: 'Sedang', color: '#f59e0b' },
+                    { name: 'santai', label: 'Santai', color: '#10b981' }
+                  ] as const).map(p => (
+                    <TouchableOpacity 
+                      key={p.name} 
+                      onPress={() => setSelectedPriority(p.name)} 
+                      style={[
+                        styles.filterPill, 
+                        selectedPriority === p.name && { backgroundColor: p.color, borderColor: p.color }
+                      ]}
+                    >
+                      <Text style={[
+                        styles.filterPillText, 
+                        selectedPriority === p.name && styles.filterPillTextActive
+                      ]}>
+                        {p.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
 
           {/* TASK LIST */}
@@ -518,7 +710,8 @@ function AppContent() {
             style={styles.taskList} 
             contentContainerStyle={[
               styles.taskListContent,
-              isLargeScreen && styles.taskListContentDesktop
+              isLargeScreen && styles.taskListContentDesktop,
+              filteredTasks.length === 0 && { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 60 }
             ]} 
             keyboardShouldPersistTaps="handled"
             refreshControl={
@@ -535,10 +728,12 @@ function AppContent() {
                 <Text style={styles.infoText}>Memuat tugas...</Text>
               </View>
             ) : filteredTasks.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Feather name="inbox" size={36} color={theme.colors.textMuted} style={{ marginBottom: 12 }} />
-                <Text style={styles.emptyTitle}>Tidak ada tugas</Text>
-                <Text style={styles.emptySubtitle}>Buat pengingat tugas pertamamu sekarang.</Text>
+              <View style={[styles.emptyContainer, { transform: [{ translateY: -20 }] }]}>
+                <View style={styles.emptyIconWrapper}>
+                  <FontAwesome5 name="smile-beam" size={32} color={colors.primary} />
+                </View>
+                <Text style={styles.emptyTitle}>Semua Tugas Selesai!</Text>
+                <Text style={styles.emptySubtitle}>Nikmati waktumu atau buat pengingat tugas baru.</Text>
               </View>
             ) : (
               filteredTasks.map(task => {
@@ -673,11 +868,17 @@ function AppContent() {
           {/* FLOATING ACTION BUTTON (FAB) FOR ADDING TASK (Only on Mobile) */}
           {!isLargeScreen && (
             <TouchableOpacity 
-              style={styles.fabButton} 
+              style={[styles.fabButton, { overflow: 'hidden' }]} 
               onPress={handleOpenCreateModal}
               activeOpacity={0.85}
             >
-              <Feather name="plus" size={24} color="#fff" />
+              <LinearGradient
+                colors={['#4f46e5', '#6366f1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <Feather name="plus" size={24} color="#fff" style={{ zIndex: 1 }} />
             </TouchableOpacity>
           )}
         </View>
@@ -889,9 +1090,18 @@ function AppContent() {
               <TouchableOpacity onPress={handleCloseModal} style={styles.modalCancelBtn}>
                 <Text style={styles.modalCancelBtnText}>Batal</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleSubmit} style={styles.modalSaveBtn}>
-                <Feather name="save" size={14} color="#fff" style={{ marginRight: 4 }} />
-                <Text style={styles.modalSaveBtnText}>Simpan</Text>
+              <TouchableOpacity 
+                onPress={handleSubmit} 
+                style={[styles.modalSaveBtn, { overflow: 'hidden' }]}
+              >
+                <LinearGradient
+                  colors={['#4f46e5', '#6366f1']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Feather name="save" size={14} color="#fff" style={{ marginRight: 4, zIndex: 1 }} />
+                <Text style={[styles.modalSaveBtnText, { zIndex: 1 }]}>Simpan</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -954,8 +1164,17 @@ function AppContent() {
                   onBlur={() => setIsCatNameFocused(false)}
                 />
                 
-                <TouchableOpacity style={styles.catFormSaveBtn} onPress={handleSaveCategory}>
-                  <Text style={styles.catFormSaveText}>
+                <TouchableOpacity 
+                  style={[styles.catFormSaveBtn, { overflow: 'hidden' }]} 
+                  onPress={handleSaveCategory}
+                >
+                  <LinearGradient
+                    colors={['#4f46e5', '#6366f1']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0.5 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <Text style={[styles.catFormSaveText, { zIndex: 1 }]}>
                     {editingCategory ? 'Update' : 'Tambah'}
                   </Text>
                 </TouchableOpacity>
@@ -1317,6 +1536,15 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     paddingVertical: 60,
+  },
+  emptyIconWrapper: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(79, 70, 229, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 15,
@@ -1737,7 +1965,7 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
   desktopContainer: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: colors.bgDeep,
+    backgroundColor: 'transparent',
   },
   mobileContainer: {
     flex: 1,
@@ -1747,8 +1975,15 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.bgMain,
     borderRightWidth: 1,
     borderRightColor: colors.border,
-    padding: 20,
-    justifyContent: 'flex-start',
+    paddingHorizontal: 16,
+    paddingTop: 20,
+  },
+  sidebarFixedTop: {
+    width: '100%',
+  },
+  sidebarScrollableContent: {
+    paddingTop: 10,
+    paddingBottom: 30,
   },
   sidebarHeader: {
     marginBottom: 24,
@@ -1847,6 +2082,63 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '600',
+  },
+  sidebarDividerLine: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 14,
+  },
+  sidebarFilterSection: {
+    marginBottom: 16,
+  },
+  sidebarFilterItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginBottom: 2,
+  },
+  sidebarFilterItemActive: {
+    backgroundColor: isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(79, 70, 229, 0.08)',
+  },
+  sidebarFilterItemText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  sidebarFilterItemTextActive: {
+    color: colors.primary,
+    fontWeight: 'bold',
+  },
+  sidebarFilterCountBadge: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.06)',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 8,
+    minWidth: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sidebarFilterCountText: {
+    fontSize: 8.5,
+    color: colors.textMuted,
+    fontWeight: 'bold',
+  },
+  sidebarCatDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  sidebarThemeIconBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(15, 23, 42, 0.04)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   mainContent: {
     flex: 1,

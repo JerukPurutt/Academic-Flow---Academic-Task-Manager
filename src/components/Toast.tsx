@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Animated } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Animated, useWindowDimensions } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { ThemeColors } from '../theme';
 
@@ -12,6 +12,8 @@ interface ToastProps {
 }
 
 export const Toast: React.FC<ToastProps> = ({ message, type, onClose, colors, isDark }) => {
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 800;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(-30)).current;
 
@@ -134,10 +136,12 @@ export const Toast: React.FC<ToastProps> = ({ message, type, onClose, colors, is
     <Animated.View
       style={[
         styles.toastContainer,
+        isLargeScreen ? styles.toastContainerDesktop : styles.toastContainerMobile,
         {
           opacity: fadeAnim,
           transform: [{ translateY: slideAnim }],
           borderColor: config.borderColor,
+          borderLeftColor: config.iconColor,
           backgroundColor: config.bg,
         },
       ]}
@@ -154,21 +158,29 @@ export const Toast: React.FC<ToastProps> = ({ message, type, onClose, colors, is
 const getStyles = () => StyleSheet.create({
   toastContainer: {
     position: 'absolute',
-    top: 50,
-    left: 16,
-    right: 16,
     zIndex: 9999,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
+    borderLeftWidth: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 8,
+  },
+  toastContainerMobile: {
+    top: 50,
+    left: 16,
+    right: 16,
+  },
+  toastContainerDesktop: {
+    right: 24,
+    width: 350,
+    top: 24,
   },
   toastIcon: {
     marginRight: 10,

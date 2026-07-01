@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { darkColors, lightColors, ThemeColors } from '../theme';
+import { darkColors, lightColors } from '../theme';
+import type { ThemeColors } from '../theme';
 
 export type TaskPriority = 'santai' | 'sedang' | 'penting';
 
@@ -53,7 +54,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 // Helper to determine the backend API URL dynamically based on Platform & Environment
 const getBackendUrl = () => {
   if (Platform.OS === 'web') {
-    const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+    const hostname = typeof globalThis !== 'undefined' && (globalThis as any).window ? (globalThis as any).window.location.hostname : 'localhost';
     return `http://${hostname}:3000`;
   }
   
@@ -280,7 +281,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     try {
       // Quick check if server is reachable
-      const statusRes = await fetch(`${BACKEND_URL}/api/status`, { signal: AbortSignal.timeout(2000) });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const statusRes = await fetch(`${BACKEND_URL}/api/status`, { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (!statusRes.ok) throw new Error('Status ping unsuccessful');
       
       // If server is reachable and we have local modifications not pushed yet
