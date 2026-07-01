@@ -51,25 +51,9 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Helper to determine the backend API URL dynamically based on Platform & Environment
-const getBackendUrl = () => {
-  if (Platform.OS === 'web') {
-    const hostname = typeof globalThis !== 'undefined' && (globalThis as any).window ? (globalThis as any).window.location.hostname : 'localhost';
-    return `http://${hostname}:3000`;
-  }
-  
-  // Expo Go App running on physical device
-  const hostUri = Constants.expoConfig?.hostUri;
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    return `http://${ip}:3000`;
-  }
-  
-  // Fallbacks
-  return Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
-};
-
-const BACKEND_URL = getBackendUrl();
+// Google Apps Script Web App — backend permanen gratis (database Google Sheets)
+// URL ini tidak berubah & selalu online meskipun laptop dimatikan
+const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyS1HYzY0rj5qT0AXiLLc3Aj_lJMks5uBWDKo6b31EZO541nZ3xkNruqyR8fMRgPWOp/exec';
 
 // Helper to migrate legacy priorities
 const migratePriority = (priority: any): TaskPriority => {
@@ -220,10 +204,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [localLastUpdated, isLoading]);
 
-  // Network Sync functions
+  // Network Sync functions — Google Apps Script menggunakan query parameter ?path=
   const fetchFromServer = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/sync`, {
+      const response = await fetch(`${BACKEND_URL}?path=sync`, {
+        method: 'GET',
         headers: { 'Cache-Control': 'no-cache' }
       });
       if (!response.ok) throw new Error('Server returned non-ok status');
@@ -253,10 +238,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const pushToServer = async (tasksToPush: Task[], categoriesToPush: Category[]) => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/sync`, {
+      const response = await fetch(`${BACKEND_URL}?path=sync`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'text/plain',
         },
         body: JSON.stringify({
           tasks: tasksToPush,
@@ -280,10 +265,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { tasks: currTasks, categories: currCats, localLastUpdated: localUpd, lastSyncTime: lastSync, syncStatus: currStatus } = stateRef.current;
     
     try {
-      // Quick check if server is reachable
+      // Quick check if server is reachable (Google Apps Script)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-      const statusRes = await fetch(`${BACKEND_URL}/api/status`, { signal: controller.signal });
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const statusRes = await fetch(`${BACKEND_URL}?path=status`, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (!statusRes.ok) throw new Error('Status ping unsuccessful');
       
