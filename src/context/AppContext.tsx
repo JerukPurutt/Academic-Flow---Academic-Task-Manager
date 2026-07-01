@@ -208,8 +208,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const fetchFromServer = async () => {
     try {
       const response = await fetch(`${BACKEND_URL}?path=sync`, {
-        method: 'GET',
-        headers: { 'Cache-Control': 'no-cache' }
+        method: 'GET'
       });
       if (!response.ok) throw new Error('Server returned non-ok status');
       
