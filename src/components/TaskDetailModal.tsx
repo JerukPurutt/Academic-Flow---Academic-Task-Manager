@@ -1,10 +1,11 @@
 import React from 'react';
 import { 
   StyleSheet, View, Text, TouchableOpacity, ScrollView, Modal, 
-  KeyboardAvoidingView, Platform, TouchableWithoutFeedback
+  KeyboardAvoidingView, Platform, TouchableWithoutFeedback,
+  useWindowDimensions
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import type { Task, Category } from '../context/AppContext';
+import type { Task, Category, TaskPriority } from '../context/AppContext';
 import type { ThemeColors } from '../theme';
 
 interface TaskDetailModalProps {
@@ -32,6 +33,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 }) => {
   if (!task) return null;
 
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 800;
   const styles = getStyles(colors, isDark);
 
   // Find category color
@@ -47,13 +50,22 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const getFormattedDeadline = (deadlineStr: string | null) => {
     if (!deadlineStr) return 'Tanpa Tenggat';
     const date = new Date(deadlineStr);
-    return date.toLocaleString('id-ID', {
+    return date.toLocaleDateString('id-ID', {
       day: 'numeric',
       month: 'long',
-      year: 'numeric',
+      year: 'numeric'
+    }) + ', pukul ' + date.toLocaleTimeString('id-ID', {
       hour: '2-digit',
       minute: '2-digit'
-    });
+    }).replace('.', ':');
+  };
+
+  const getPriorityConfig = (p: TaskPriority) => {
+    switch (p) {
+      case 'penting': return { label: 'Penting', color: '#ef4444', icon: 'alert-circle' as const };
+      case 'sedang': return { label: 'Sedang', color: '#f59e0b', icon: 'minus-circle' as const };
+      case 'santai': return { label: 'Santai', color: '#10b981', icon: 'check-circle' as const };
+    }
   };
 
   // Get status details
@@ -90,16 +102,16 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       onRequestClose={onClose}
     >
       <TouchableOpacity
-        style={styles.modalOverlay}
+        style={[styles.modalOverlay, isLargeScreen && styles.modalOverlayDesktop]}
         activeOpacity={1}
         onPress={onClose}
       >
         <KeyboardAvoidingView
-          behavior="padding"
-          style={{ width: '100%', justifyContent: 'flex-end', flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={isLargeScreen ? styles.keyboardAvoidDesktop : styles.keyboardAvoidMobile}
         >
           <TouchableWithoutFeedback>
-            <View style={styles.modalContainer}>
+            <View style={[styles.modalContainer, isLargeScreen && styles.modalContainerDesktop]}>
           {/* Header Row */}
           <View style={styles.modalHeader}>
             <View style={styles.headerBadgeRow}>
@@ -107,6 +119,16 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               <View style={[styles.catBadge, { backgroundColor: `${catColor}15` }]}>
                 <Text style={[styles.catBadgeText, { color: catColor }]}>{task.category}</Text>
               </View>
+              {/* Priority badge */}
+              {(() => {
+                const pc = getPriorityConfig(task.priority || 'sedang');
+                return (
+                  <View style={[styles.statusBadge, { backgroundColor: `${pc.color}15`, borderColor: `${pc.color}30` }]}>
+                    <Feather name={pc.icon} size={12} color={pc.color} />
+                    <Text style={[styles.statusBadgeText, { color: pc.color }]}>{pc.label}</Text>
+                  </View>
+                );
+              })()}
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Feather name="x" size={20} color={colors.textSecondary} />
@@ -143,12 +165,29 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               </View>
             </View>
 
+            {/* Priority Section */}
+            <View style={styles.infoSection}>
+              <Text style={styles.sectionLabel}>Tingkat Kepentingan</Text>
+              {(() => {
+                const pc = getPriorityConfig(task.priority || 'sedang');
+                return (
+                  <View style={[styles.infoCard, { borderColor: `${pc.color}30`, backgroundColor: `${pc.color}05` }]}>
+                    <Feather name={pc.icon} size={16} color={pc.color} />
+                    <Text style={[styles.infoCardText, { color: pc.color, fontWeight: '600' }]}>{pc.label}</Text>
+                    <Text style={[styles.infoCardText, { color: colors.textSecondary, fontSize: 11 }]}>
+                      {pc.label === 'Penting' ? '— Tugas ini sangat mendesak!' : pc.label === 'Sedang' ? '— Perlu dikerjakan tepat waktu.' : '— Bisa dikerjakan santai.'}
+                    </Text>
+                  </View>
+                );
+              })()}
+            </View>
+
             {/* Description Section */}
             <View style={styles.infoSection}>
               <Text style={styles.sectionLabel}>Deskripsi Tugas</Text>
               {task.description ? (
                 <View style={styles.descCard}>
-                  <ScrollView style={styles.descScrollView} nestedScrollEnabled={true}>
+                  <ScrollView style={styles.descScrollView} nestedScrollEnabled={true} showsVerticalScrollIndicator={false}>
                     <Text style={styles.descText}>{task.description}</Text>
                   </ScrollView>
                 </View>
@@ -380,5 +419,33 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
   btnText: {
     fontSize: 12.5,
     fontWeight: 'bold',
+  },
+  modalOverlayDesktop: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  keyboardAvoidDesktop: {
+    width: '100%',
+    maxWidth: 540,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  keyboardAvoidMobile: {
+    width: '100%',
+    justifyContent: 'flex-end',
+    flex: 1,
+  },
+  modalContainerDesktop: {
+    width: '100%',
+    borderRadius: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
   },
 });

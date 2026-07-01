@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Modal, 
-  KeyboardAvoidingView, Platform, StatusBar, TouchableWithoutFeedback 
+  KeyboardAvoidingView, Platform, StatusBar, TouchableWithoutFeedback,
+  useWindowDimensions, RefreshControl
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { AppProvider, useApp } from './context/AppContext';
-import type { Task, Category } from './context/AppContext';
+import type { Task, Category, TaskPriority } from './context/AppContext';
 import { Toast } from './components/Toast';
 import { ValidationError } from './components/ValidationError';
 import { ConfirmModal } from './components/ConfirmModal';
@@ -41,10 +42,27 @@ function AppContent() {
     showToast,
     isDark,
     colors,
-    toggleTheme
+    toggleTheme,
+    syncStatus,
+    triggerManualSync
   } = useApp();
 
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 800;
   const styles = getStyles(colors, isDark);
+
+  const [isTitleFocused, setIsTitleFocused] = useState(false);
+  const [isDescFocused, setIsDescFocused] = useState(false);
+  const [isCatNameFocused, setIsCatNameFocused] = useState(false);
+
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
@@ -64,6 +82,7 @@ function AppContent() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
+  const [priority, setPriority] = useState<TaskPriority>('sedang');
   const [hasDeadline, setHasDeadline] = useState(true);
   const [deadline, setDeadline] = useState<Date>(new Date(Date.now() + 24 * 3600 * 1000));
   
@@ -105,6 +124,7 @@ function AppContent() {
     setTitle('');
     setDescription('');
     setCategory(categories[0]?.name || 'Pribadi');
+    setPriority('sedang');
     setHasDeadline(true);
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -120,6 +140,7 @@ function AppContent() {
     setTitle(task.title);
     setDescription(task.description || '');
     setCategory(task.category);
+    setPriority(task.priority || 'sedang');
     if (task.deadline) {
       setHasDeadline(true);
       setDeadline(new Date(task.deadline));
@@ -220,6 +241,7 @@ function AppContent() {
       description: description.trim() || undefined,
       deadline: hasDeadline ? deadline.toISOString() : null,
       category: category,
+      priority: priority,
     };
 
     if (editingTask) {
@@ -264,14 +286,23 @@ function AppContent() {
     return cat ? cat.color : colors.primary;
   };
 
+  const getPriorityConfig = (p: TaskPriority) => {
+    switch (p) {
+      case 'penting': return { label: 'Penting', color: '#ef4444', icon: 'alert-circle' as const };
+      case 'sedang': return { label: 'Sedang', color: '#f59e0b', icon: 'minus-circle' as const };
+      case 'santai': return { label: 'Santai', color: '#10b981', icon: 'check-circle' as const };
+    }
+  };
+
   const getFormattedDate = () => {
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const months = [
       'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
       'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
     ];
-    const now = new Date();
-    return `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+    const hours = currentTime.getHours().toString().padStart(2, '0');
+    const minutes = currentTime.getMinutes().toString().padStart(2, '0');
+    return `${days[currentTime.getDay()]}, ${currentTime.getDate()} ${months[currentTime.getMonth()]} ${currentTime.getFullYear()} • ${hours}:${minutes}`;
   };
 
   const insets = useSafeAreaInsets();
@@ -280,240 +311,377 @@ function AppContent() {
     <View style={styles.container}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} translucent backgroundColor="transparent" />
       
-      {/* HEADER */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.headerTitle}>Academic Flow</Text>
-            <Text style={styles.headerSubtitle}>{getFormattedDate()}</Text>
-          </View>
-
-          <View style={styles.headerRight}>
-            <TouchableOpacity 
-              onPress={toggleSearch} 
-              style={[
-                styles.headerSearchButton,
-                isSearchVisible && styles.headerSearchButtonActive
-              ]}
-              activeOpacity={0.8}
-            >
-              <Feather name="search" size={16} color={isSearchVisible ? colors.primary : colors.textSecondary} />
-            </TouchableOpacity>
-
-            {/* THEME TOGGLE BUTTON */}
-            <TouchableOpacity 
-              onPress={toggleTheme} 
-              style={styles.headerThemeButton}
-              activeOpacity={0.8}
-            >
-              <Feather 
-                name={isDark ? "sun" : "moon"} 
-                size={16} 
-                color={colors.textSecondary} 
-              />
-            </TouchableOpacity>
-
-            {/* STATS CAPSULE */}
-            <View style={styles.statsCapsule}>
-              <View style={styles.statsSegment}>
-                <Feather name="clock" size={11} color={colors.primary} />
-                <Text style={styles.statsNumber}>{activeTasks}</Text>
-              </View>
-              <View style={styles.statsDivider} />
-              <View style={styles.statsSegment}>
-                <Feather name="check-circle" size={11} color={colors.success} />
-                <Text style={[styles.statsNumber, { color: colors.success }]}>{completedTasks}</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      </View>
-
-      {/* SEARCH BAR & FILTERS */}
-      <View style={styles.searchBarContainer}>
-        {isSearchVisible && (
-          <View style={styles.searchRow}>
-            <View style={styles.searchInputWrapper}>
-              <Feather name="search" size={15} color={theme.colors.textMuted} style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Cari tugas..."
-                placeholderTextColor={theme.colors.textMuted}
-                value={searchTerm}
-                onChangeText={setSearchTerm}
-                autoFocus={true}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* Category Filter Horizontal Scroll */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryFilterRow}>
-          <TouchableOpacity 
-            onPress={() => setSelectedCategory('all')} 
-            style={[styles.filterPill, selectedCategory === 'all' && styles.filterPillActive]}
-          >
-            <Text style={[styles.filterPillText, selectedCategory === 'all' && styles.filterPillTextActive]}>
-              Semua
-            </Text>
-          </TouchableOpacity>
-          {categories.map(cat => (
-            <TouchableOpacity 
-              key={cat.id} 
-              onPress={() => setSelectedCategory(cat.name)} 
-              style={[
-                styles.filterPill, 
-                selectedCategory === cat.name && { backgroundColor: cat.color }
-              ]}
-            >
-              <Text style={[
-                styles.filterPillText, 
-                selectedCategory === cat.name && styles.filterPillTextActive
-              ]}>
-                {cat.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* TASK LIST */}
-      <ScrollView style={styles.taskList} contentContainerStyle={styles.taskListContent} keyboardShouldPersistTaps="handled">
-        {isLoading ? (
-          <View style={styles.centerContainer}>
-            <Text style={styles.infoText}>Memuat tugas...</Text>
-          </View>
-        ) : filteredTasks.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Feather name="inbox" size={36} color={theme.colors.textMuted} style={{ marginBottom: 12 }} />
-            <Text style={styles.emptyTitle}>Tidak ada tugas</Text>
-            <Text style={styles.emptySubtitle}>Buat pengingat tugas pertamamu sekarang.</Text>
-          </View>
-        ) : (
-          filteredTasks.map(task => {
-            const catColor = getCategoryColor(task.category);
-            const isOverdue = task.deadline 
-              ? new Date(task.deadline).getTime() < Date.now() && !task.completed
-              : false;
-            const formattedDate = task.deadline 
-              ? new Date(task.deadline).toLocaleString('id-ID', {
-                  day: 'numeric',
-                  month: 'short',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })
-              : '';
-
-            return (
-              <View 
-                key={task.id} 
+      <View style={isLargeScreen ? styles.desktopContainer : styles.mobileContainer}>
+        {/* SIDEBAR FOR DESKTOP */}
+        {isLargeScreen && (
+          <View style={styles.sidebar}>
+            <View style={styles.sidebarHeader}>
+              <Text style={styles.sidebarTitle}>Academic Flow</Text>
+              <Text style={styles.sidebarSubtitle}>{getFormattedDate()}</Text>
+              
+              {/* Sync Status Badge in Sidebar */}
+              <TouchableOpacity 
+                onPress={triggerManualSync} 
+                activeOpacity={0.7} 
                 style={[
-                  styles.taskCard, 
-                  { 
-                    backgroundColor: `${catColor}12`, // Subtle category tint
-                    borderColor: `${catColor}25` // Match border to tint
-                  },
-                  task.completed && styles.taskCardCompleted
+                  styles.syncBadge,
+                  syncStatus === 'online' ? styles.syncBadgeOnline :
+                  syncStatus === 'offline' ? styles.syncBadgeOffline :
+                  syncStatus === 'connecting' ? styles.syncBadgeConnecting : styles.syncBadgeConnecting,
+                  { marginTop: 12, alignSelf: 'flex-start' }
                 ]}
               >
-                {/* Complete Toggle Checkbox */}
-                <TouchableOpacity 
-                  onPress={() => updateTask(task.id, { completed: !task.completed })}
-                  style={styles.checkboxWrapper}
-                >
-                  <View style={[
-                    styles.checkbox,
-                    task.completed && { backgroundColor: colors.success, borderColor: colors.success }
-                  ]}>
-                    {task.completed && <Feather name="check" size={12} color="#fff" />}
-                  </View>
-                </TouchableOpacity>
+                <View style={[
+                  styles.syncDot,
+                  syncStatus === 'online' ? styles.syncDotOnline :
+                  syncStatus === 'offline' ? styles.syncDotOffline :
+                  syncStatus === 'connecting' ? styles.syncDotConnecting : styles.syncDotConnecting
+                ]} />
+                <Text style={styles.syncBadgeText}>
+                  {syncStatus === 'online' ? 'Online' :
+                   syncStatus === 'offline' ? 'Offline' : 'Menghubungkan...'}
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-                {/* Content */}
-                <TouchableOpacity 
-                  style={styles.cardContent}
-                  onPress={() => setSelectedTaskIdForDetail(task.id)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[
-                    styles.taskCardTitle,
-                    task.completed && styles.taskCardTitleCompleted
-                  ]}>
-                    {task.title}
-                  </Text>
-                  
-                  {task.description ? (
-                    <Text 
-                      style={[
-                        styles.taskCardDesc,
-                        task.completed && styles.taskCardDescCompleted
-                      ]}
-                      numberOfLines={2}
-                    >
-                      {task.description}
-                    </Text>
-                  ) : null}
-                  
-                  <View style={styles.cardFooter}>
-                    {/* Category tag */}
-                    <View style={[styles.catTag, { backgroundColor: `${catColor}15` }]}>
-                      <Text style={[styles.catTagText, { color: catColor }]}>{task.category}</Text>
-                    </View>
+            {/* Aksi Tambah Tugas Utama */}
+            <TouchableOpacity 
+              style={styles.sidebarAddButton} 
+              onPress={handleOpenCreateModal}
+              activeOpacity={0.8}
+            >
+              <Feather name="plus" size={16} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.sidebarAddButtonText}>Tugas Baru</Text>
+            </TouchableOpacity>
 
-                    {/* Deadline Reminder */}
-                    <View style={styles.timeWrapper}>
-                      <Feather 
-                        name={task.deadline ? "clock" : "bell-off"} 
-                        size={12} 
-                        color={isOverdue ? colors.danger : colors.textMuted} 
-                      />
-                      <Text style={[
-                        styles.timeText,
-                        isOverdue && styles.timeTextOverdue
-                      ]}>
-                        {task.deadline ? formattedDate : 'Tanpa Tenggat'}
-                      </Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-
-                {/* Actions */}
-                <View style={styles.actionsWrapper}>
-                  {!task.completed && (
-                    <TouchableOpacity onPress={() => handleOpenEditModal(task)} style={styles.actionIconButton}>
-                      <Feather name="edit-2" size={13} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity 
-                    onPress={() => {
-                      setConfirmConfig({
-                        title: 'Hapus Pengingat?',
-                        message: `Apakah Anda yakin ingin menghapus tugas "${task.title}"? Tindakan ini tidak dapat dibatalkan.`,
-                        action: () => {
-                          deleteTask(task.id);
-                          setConfirmConfig(null);
-                        }
-                      });
-                    }} 
-                    style={[styles.actionIconButton, { marginLeft: 6 }]}
-                  >
-                    <Feather name="trash-2" size={13} color={colors.danger} />
-                  </TouchableOpacity>
+            {/* Statistik Panel */}
+            <View style={styles.sidebarStats}>
+              <Text style={styles.sidebarSectionLabel}>Statistik Tugas</Text>
+              <View style={styles.sidebarStatsRow}>
+                <View style={styles.sidebarStatCol}>
+                  <Text style={styles.sidebarStatNum}>{activeTasks}</Text>
+                  <Text style={styles.sidebarStatLabel}>Aktif</Text>
+                </View>
+                <View style={styles.sidebarStatDivider} />
+                <View style={styles.sidebarStatCol}>
+                  <Text style={[styles.sidebarStatNum, { color: colors.success }]}>{completedTasks}</Text>
+                  <Text style={styles.sidebarStatLabel}>Selesai</Text>
                 </View>
               </View>
-            );
-          })
-        )}
-      </ScrollView>
+            </View>
 
-      {/* FLOATING ACTION BUTTON (FAB) FOR ADDING TASK */}
-      <TouchableOpacity 
-        style={styles.fabButton} 
-        onPress={handleOpenCreateModal}
-        activeOpacity={0.85}
-      >
-        <Feather name="plus" size={24} color="#fff" />
-      </TouchableOpacity>
+            {/* Tombol Kelola Kategori */}
+            <TouchableOpacity 
+              style={styles.sidebarManageCatBtn} 
+              onPress={handleOpenCategoryModal}
+              activeOpacity={0.8}
+            >
+              <Feather name="settings" size={13} color={colors.textSecondary} style={{ marginRight: 6 }} />
+              <Text style={styles.sidebarManageCatText}>Kelola Kategori</Text>
+            </TouchableOpacity>
+
+            {/* Tombol Ganti Tema di Footer */}
+            <View style={styles.sidebarFooter}>
+              <TouchableOpacity 
+                onPress={toggleTheme} 
+                style={styles.sidebarThemeBtn}
+                activeOpacity={0.8}
+              >
+                <Feather name={isDark ? "sun" : "moon"} size={14} color={colors.textSecondary} style={{ marginRight: 6 }} />
+                <Text style={styles.sidebarThemeText}>{isDark ? 'Mode Terang' : 'Mode Gelap'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* MAIN PANEL CONTENT */}
+        <View style={styles.mainContent}>
+          {/* HEADER (Only visible on mobile) */}
+          {!isLargeScreen && (
+            <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
+              <View style={styles.header}>
+                <View style={styles.headerLeft}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.headerTitle}>Academic Flow</Text>
+                    <TouchableOpacity 
+                      onPress={triggerManualSync} 
+                      activeOpacity={0.7} 
+                      style={[
+                        styles.syncBadge,
+                        syncStatus === 'online' ? styles.syncBadgeOnline :
+                        syncStatus === 'offline' ? styles.syncBadgeOffline :
+                        syncStatus === 'connecting' ? styles.syncBadgeConnecting : styles.syncBadgeConnecting
+                      ]}
+                    >
+                      <View style={[
+                        styles.syncDot,
+                        syncStatus === 'online' ? styles.syncDotOnline :
+                        syncStatus === 'offline' ? styles.syncDotOffline :
+                        syncStatus === 'connecting' ? styles.syncDotConnecting : styles.syncDotConnecting
+                      ]} />
+                      <Text style={styles.syncBadgeText}>
+                        {syncStatus === 'online' ? 'Online' :
+                         syncStatus === 'offline' ? 'Offline' : 'Menghubungkan...'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.headerSubtitle}>{getFormattedDate()}</Text>
+                </View>
+
+                <View style={styles.headerRight}>
+                  <TouchableOpacity 
+                    onPress={toggleSearch} 
+                    style={[
+                      styles.headerSearchButton,
+                      isSearchVisible && styles.headerSearchButtonActive
+                    ]}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="search" size={16} color={isSearchVisible ? colors.primary : colors.textSecondary} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    onPress={toggleTheme} 
+                    style={styles.headerThemeButton}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name={isDark ? "sun" : "moon"} size={16} color={colors.textSecondary} />
+                  </TouchableOpacity>
+
+                  <View style={styles.statsCapsule}>
+                    <View style={styles.statsSegment}>
+                      <Feather name="clock" size={11} color={colors.primary} />
+                      <Text style={styles.statsNumber}>{activeTasks}</Text>
+                    </View>
+                    <View style={styles.statsDivider} />
+                    <View style={styles.statsSegment}>
+                      <Feather name="check-circle" size={11} color={colors.success} />
+                      <Text style={[styles.statsNumber, { color: colors.success }]}>{completedTasks}</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* SEARCH BAR & FILTERS */}
+          <View style={styles.searchBarContainer}>
+            {/* On desktop, search is always visible. On mobile, it toggles. */}
+            {(isLargeScreen || isSearchVisible) && (
+              <View style={styles.searchRow}>
+                <View style={styles.searchInputWrapper}>
+                  <Feather name="search" size={15} color={theme.colors.textMuted} style={styles.searchIcon} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Cari tugas..."
+                    placeholderTextColor={theme.colors.textMuted}
+                    value={searchTerm}
+                    onChangeText={setSearchTerm}
+                    autoFocus={!isLargeScreen}
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* Category Filter Horizontal Scroll */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryFilterRow}>
+              <TouchableOpacity 
+                onPress={() => setSelectedCategory('all')} 
+                style={[styles.filterPill, selectedCategory === 'all' && styles.filterPillActive]}
+              >
+                <Text style={[styles.filterPillText, selectedCategory === 'all' && styles.filterPillTextActive]}>
+                  Semua
+                </Text>
+              </TouchableOpacity>
+              {categories.map(cat => (
+                <TouchableOpacity 
+                  key={cat.id} 
+                  onPress={() => setSelectedCategory(cat.name)} 
+                  style={[
+                    styles.filterPill, 
+                    selectedCategory === cat.name && { backgroundColor: cat.color }
+                  ]}
+                >
+                  <Text style={[
+                    styles.filterPillText, 
+                    selectedCategory === cat.name && styles.filterPillTextActive
+                  ]}>
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* TASK LIST */}
+          <ScrollView 
+            style={styles.taskList} 
+            contentContainerStyle={[
+              styles.taskListContent,
+              isLargeScreen && styles.taskListContentDesktop
+            ]} 
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl
+                refreshing={syncStatus === 'connecting'}
+                onRefresh={triggerManualSync}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
+              />
+            }
+          >
+            {isLoading ? (
+              <View style={styles.centerContainer}>
+                <Text style={styles.infoText}>Memuat tugas...</Text>
+              </View>
+            ) : filteredTasks.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Feather name="inbox" size={36} color={theme.colors.textMuted} style={{ marginBottom: 12 }} />
+                <Text style={styles.emptyTitle}>Tidak ada tugas</Text>
+                <Text style={styles.emptySubtitle}>Buat pengingat tugas pertamamu sekarang.</Text>
+              </View>
+            ) : (
+              filteredTasks.map(task => {
+                const catColor = getCategoryColor(task.category);
+                const isOverdue = task.deadline 
+                  ? new Date(task.deadline).getTime() < Date.now() && !task.completed
+                  : false;
+                const formattedDate = task.deadline 
+                  ? new Date(task.deadline).toLocaleDateString('id-ID', {
+                      day: 'numeric',
+                      month: 'short'
+                    }) + ', pukul ' + new Date(task.deadline).toLocaleTimeString('id-ID', {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    }).replace('.', ':')
+                  : '';
+
+                return (
+                  <View 
+                    key={task.id} 
+                    style={[
+                      styles.taskCard,
+                      isLargeScreen && styles.taskCardDesktop,
+                      { 
+                        backgroundColor: `${catColor}12`,
+                        borderColor: `${catColor}25`
+                      },
+                      task.completed && styles.taskCardCompleted
+                    ]}
+                  >
+                    {/* Complete Toggle Checkbox */}
+                    <TouchableOpacity 
+                      onPress={() => updateTask(task.id, { completed: !task.completed })}
+                      style={styles.checkboxWrapper}
+                    >
+                      <View style={[
+                        styles.checkbox,
+                        task.completed && { backgroundColor: colors.success, borderColor: colors.success }
+                      ]}>
+                        {task.completed && <Feather name="check" size={12} color="#fff" />}
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Content */}
+                    <TouchableOpacity 
+                      style={styles.cardContent}
+                      onPress={() => setSelectedTaskIdForDetail(task.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[
+                        styles.taskCardTitle,
+                        task.completed && styles.taskCardTitleCompleted
+                      ]}>
+                        {task.title}
+                      </Text>
+                      
+                      {task.description ? (
+                        <Text 
+                          style={[
+                            styles.taskCardDesc,
+                            task.completed && styles.taskCardDescCompleted
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {task.description}
+                        </Text>
+                      ) : null}
+                      
+                      <View style={styles.cardFooter}>
+                        {/* Category tag */}
+                        <View style={[styles.catTag, { backgroundColor: `${catColor}15` }]}>
+                          <Text style={[styles.catTagText, { color: catColor }]}>{task.category}</Text>
+                        </View>
+
+                        {/* Priority Badge */}
+                        {(() => {
+                          const pc = getPriorityConfig(task.priority || 'sedang');
+                          return (
+                            <View style={[styles.priorityTag, { backgroundColor: `${pc.color}18` }]}>
+                              <Feather name={pc.icon} size={9} color={pc.color} />
+                              <Text style={[styles.priorityTagText, { color: pc.color }]}>{pc.label}</Text>
+                            </View>
+                          );
+                        })()}
+
+                        {/* Deadline Reminder */}
+                        <View style={styles.timeWrapper}>
+                          <Feather 
+                            name={task.deadline ? "clock" : "bell-off"} 
+                            size={12} 
+                            color={isOverdue ? colors.danger : colors.textMuted} 
+                          />
+                          <Text style={[
+                            styles.timeText,
+                            isOverdue && styles.timeTextOverdue
+                          ]}>
+                            {task.deadline ? formattedDate : 'Tanpa Tenggat'}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Actions */}
+                    <View style={styles.actionsWrapper}>
+                      {!task.completed && (
+                        <TouchableOpacity onPress={() => handleOpenEditModal(task)} style={styles.actionIconButton}>
+                          <Feather name="edit-2" size={13} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity 
+                        onPress={() => {
+                          setConfirmConfig({
+                            title: 'Hapus Pengingat?',
+                            message: `Apakah Anda yakin ingin menghapus tugas "${task.title}"? Tindakan ini tidak dapat dibatalkan.`,
+                            action: () => {
+                              deleteTask(task.id);
+                              setConfirmConfig(null);
+                            }
+                          });
+                        }} 
+                        style={[styles.actionIconButton, { marginLeft: 6 }]}
+                      >
+                        <Feather name="trash-2" size={13} color={colors.danger} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </ScrollView>
+
+          {/* FLOATING ACTION BUTTON (FAB) FOR ADDING TASK (Only on Mobile) */}
+          {!isLargeScreen && (
+            <TouchableOpacity 
+              style={styles.fabButton} 
+              onPress={handleOpenCreateModal}
+              activeOpacity={0.85}
+            >
+              <Feather name="plus" size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
 
       {/* QUICK ADD MODAL */}
       <Modal
@@ -523,16 +691,16 @@ function AppContent() {
         onRequestClose={handleCloseModal}
       >
         <TouchableOpacity
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, isLargeScreen && styles.modalOverlayDesktop]}
           activeOpacity={1}
           onPress={handleCloseModal}
         >
           <KeyboardAvoidingView
-            behavior="padding"
-            style={{ width: '100%', justifyContent: 'flex-end', flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={isLargeScreen ? styles.keyboardAvoidDesktop : styles.keyboardAvoidMobile}
           >
             <TouchableWithoutFeedback>
-              <View style={styles.modalContainer}>
+              <View style={[styles.modalContainer, isLargeScreen && styles.modalContainerDesktop]}>
             {/* Header */}
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderTitleRow}>
@@ -547,119 +715,173 @@ function AppContent() {
             </View>
 
             {/* Form Fields */}
-            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
-              {/* Task Title */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Judul Tugas / Pengingat *</Text>
-                <TextInput
-                  style={[
-                    styles.textInput, 
-                    titleError ? { borderColor: colors.danger, backgroundColor: 'rgba(239, 68, 68, 0.04)' } : {}
-                  ]}
-                  value={title}
-                  onChangeText={(val) => {
-                    setTitle(val);
-                    if (val.trim()) setTitleError('');
-                  }}
-                  placeholder="Contoh: Kuis Matematika Bab 4..."
-                  placeholderTextColor={colors.textMuted}
-                  autoFocus={true}
-                />
-                <ValidationError message={titleError} />
-              </View>
-
-              {/* Task Description */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Deskripsi (Opsional)</Text>
-                <TextInput
-                  style={styles.textAreaInput}
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder="Contoh: Tulis detail tugas atau catatan di sini..."
-                  placeholderTextColor={colors.textMuted}
-                  multiline={true}
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
-              </View>
-
-              {/* Category selector */}
-              <View style={styles.formGroup}>
-                <View style={styles.categoryHeader}>
-                  <Text style={styles.formLabel}>Kategori *</Text>
-                  <TouchableOpacity 
-                    onPress={handleOpenCategoryModal} 
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                  >
-                    <Feather name="settings" size={11} color={colors.primary} />
-                    <Text style={styles.addCategoryLink}>Kelola Kategori</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.categoryPillRow}>
-                  {categories.map(cat => {
-                    const isSelected = category === cat.name;
-                    return (
-                      <TouchableOpacity
-                        key={cat.id}
-                        onPress={() => {
-                          setCategory(cat.name);
-                          setCategoryError('');
-                        }}
-                        style={[
-                          styles.catSelectPill,
-                          isSelected && { backgroundColor: cat.color, borderColor: cat.color }
-                        ]}
-                      >
-                        <Text style={[
-                          styles.catSelectPillText,
-                          isSelected && styles.catSelectPillTextActive
-                        ]}>
-                          {cat.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-                <ValidationError message={categoryError} />
-              </View>
-
-              {/* Toggle Has Deadline */}
-              <View style={styles.toggleRow}>
-                <Text style={styles.toggleLabel}>Aktifkan Tenggat / Pengingat</Text>
-                <TouchableOpacity 
-                  onPress={() => setHasDeadline(!hasDeadline)} 
-                  style={[
-                    styles.toggleSwitch,
-                    hasDeadline && styles.toggleSwitchActive
-                  ]}
-                  activeOpacity={0.8}
-                >
-                  <View style={[
-                    styles.toggleKnob,
-                    hasDeadline && styles.toggleKnobActive
-                  ]} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Date/Time Picker Trigger */}
-              {hasDeadline && (
+            <ScrollView 
+              style={styles.modalBody} 
+              keyboardShouldPersistTaps="handled" 
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={isLargeScreen ? styles.modalBodyContentDesktop : null}
+            >
+              {/* LEFT COLUMN FOR DESKTOP, STANDARD FLOW FOR MOBILE */}
+              <View style={isLargeScreen ? styles.modalFormColLeft : null}>
+                {/* Task Title */}
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Waktu Pengingat *</Text>
-                  <TouchableOpacity style={styles.pickerTriggerButton} onPress={openPicker}>
-                    <Feather name="calendar" size={14} color={colors.textSecondary} />
-                    <Text style={styles.pickerTriggerText}>
-                      {deadline.toLocaleString('id-ID', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </Text>
+                  <Text style={styles.formLabel}>Judul Tugas / Pengingat *</Text>
+                  <TextInput
+                    style={[
+                      styles.textInput, 
+                      isTitleFocused && { borderColor: colors.primary, borderWidth: 1.5 },
+                      titleError ? { borderColor: colors.danger, backgroundColor: 'rgba(239, 68, 68, 0.04)' } : {}
+                    ]}
+                    value={title}
+                    onChangeText={(val) => {
+                      setTitle(val);
+                      if (val.trim()) setTitleError('');
+                    }}
+                    onFocus={() => setIsTitleFocused(true)}
+                    onBlur={() => setIsTitleFocused(false)}
+                    placeholder="Contoh: Kuis Matematika Bab 4..."
+                    placeholderTextColor={colors.textMuted}
+                    autoFocus={true}
+                  />
+                  <ValidationError message={titleError} />
+                </View>
+
+                {/* Task Description */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Deskripsi (Opsional)</Text>
+                  <TextInput
+                    style={[
+                      styles.textAreaInput,
+                      isDescFocused && { borderColor: colors.primary, borderWidth: 1.5 },
+                      isLargeScreen && { height: 165 }
+                    ]}
+                    value={description}
+                    onChangeText={setDescription}
+                    onFocus={() => setIsDescFocused(true)}
+                    onBlur={() => setIsDescFocused(false)}
+                    placeholder="Contoh: Tulis detail tugas atau catatan di sini..."
+                    placeholderTextColor={colors.textMuted}
+                    multiline={true}
+                    numberOfLines={isLargeScreen ? 6 : 3}
+                    textAlignVertical="top"
+                  />
+                </View>
+              </View>
+
+              {/* RIGHT COLUMN FOR DESKTOP, STANDARD FLOW FOR MOBILE */}
+              <View style={isLargeScreen ? styles.modalFormColRight : null}>
+                {/* Category selector */}
+                <View style={styles.formGroup}>
+                  <View style={styles.categoryHeader}>
+                    <Text style={styles.formLabel}>Kategori *</Text>
+                    <TouchableOpacity 
+                      onPress={handleOpenCategoryModal} 
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                    >
+                      <Feather name="settings" size={11} color={colors.primary} />
+                      <Text style={styles.addCategoryLink}>Kelola Kategori</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.categoryPillRow}>
+                    {categories.map(cat => {
+                      const isSelected = category === cat.name;
+                      return (
+                        <TouchableOpacity
+                          key={cat.id}
+                          onPress={() => {
+                            setCategory(cat.name);
+                            setCategoryError('');
+                          }}
+                          style={[
+                            styles.catSelectPill,
+                            isSelected && { backgroundColor: cat.color, borderColor: cat.color }
+                          ]}
+                        >
+                          <Text style={[
+                            styles.catSelectPillText,
+                            isSelected && styles.catSelectPillTextActive
+                          ]}>
+                            {cat.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <ValidationError message={categoryError} />
+                </View>
+
+                {/* Priority Selector */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Tingkat Kepentingan *</Text>
+                  <View style={styles.priorityRow}>
+                    {(['santai', 'sedang', 'penting'] as TaskPriority[]).map(p => {
+                      const pc = getPriorityConfig(p);
+                      const isSelected = priority === p;
+                      return (
+                        <TouchableOpacity
+                          key={p}
+                          onPress={() => setPriority(p)}
+                          style={[
+                            styles.priorityBtn,
+                            isSelected && { backgroundColor: pc.color, borderColor: pc.color }
+                          ]}
+                          activeOpacity={0.8}
+                        >
+                          <Feather
+                            name={pc.icon}
+                            size={12}
+                            color={isSelected ? '#fff' : pc.color}
+                            style={{ marginRight: 5 }}
+                          />
+                          <Text style={[
+                            styles.priorityBtnText,
+                            { color: isSelected ? '#fff' : pc.color }
+                          ]}>{pc.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {/* Toggle Has Deadline */}
+                <View style={styles.toggleRow}>
+                  <Text style={styles.toggleLabel}>Aktifkan Tenggat / Pengingat</Text>
+                  <TouchableOpacity 
+                    onPress={() => setHasDeadline(!hasDeadline)} 
+                    style={[
+                      styles.toggleSwitch,
+                      hasDeadline && styles.toggleSwitchActive
+                    ]}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[
+                      styles.toggleKnob,
+                      hasDeadline && styles.toggleKnobActive
+                    ]} />
                   </TouchableOpacity>
                 </View>
-              )}
+
+                {/* Date/Time Picker Trigger */}
+                {hasDeadline && (
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Waktu Pengingat *</Text>
+                    <TouchableOpacity style={styles.pickerTriggerButton} onPress={openPicker}>
+                      <Feather name="calendar" size={14} color={colors.textSecondary} />
+                      <Text style={styles.pickerTriggerText}>
+                        {deadline.toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric'
+                        }) + ', pukul ' + deadline.toLocaleTimeString('id-ID', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }).replace('.', ':')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
             </ScrollView>
 
             {/* Modal Footer */}
@@ -686,16 +908,16 @@ function AppContent() {
         onRequestClose={() => setIsCategoryModalOpen(false)}
       >
         <TouchableOpacity
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, isLargeScreen && styles.modalOverlayDesktop]}
           activeOpacity={1}
           onPress={() => setIsCategoryModalOpen(false)}
         >
           <KeyboardAvoidingView
-            behavior="padding"
-            style={{ width: '100%', justifyContent: 'flex-end', flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={isLargeScreen ? styles.keyboardAvoidDesktop : styles.keyboardAvoidMobile}
           >
             <TouchableWithoutFeedback>
-              <View style={styles.modalContainer}>
+              <View style={[styles.modalContainer, isLargeScreen && styles.modalContainerDesktop]}>
             {/* Header */}
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderTitleRow}>
@@ -718,6 +940,7 @@ function AppContent() {
                   style={[
                     styles.textInput, 
                     { flex: 1, height: 38 },
+                    isCatNameFocused && { borderColor: colors.primary, borderWidth: 1.5 },
                     categoryError ? { borderColor: colors.danger, backgroundColor: 'rgba(239, 68, 68, 0.04)' } : {}
                   ]}
                   placeholder="Nama kategori..."
@@ -727,6 +950,8 @@ function AppContent() {
                     setCatNameInput(val);
                     if (val.trim()) setCategoryError('');
                   }}
+                  onFocus={() => setIsCatNameFocused(true)}
+                  onBlur={() => setIsCatNameFocused(false)}
                 />
                 
                 <TouchableOpacity style={styles.catFormSaveBtn} onPress={handleSaveCategory}>
@@ -768,7 +993,7 @@ function AppContent() {
 
             {/* List */}
             <Text style={[styles.formLabel, { marginTop: 10, marginBottom: 8 }]}>Daftar Kategori Terdaftar</Text>
-            <ScrollView style={styles.categoryManageList} keyboardShouldPersistTaps="handled">
+            <ScrollView style={styles.categoryManageList} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               {categories.map(cat => (
                 <View key={cat.id} style={styles.catManageRow}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
@@ -874,6 +1099,24 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AppProvider>
+        {Platform.OS === 'web' && (
+          <style dangerouslySetInnerHTML={{__html: `
+            /* Hide scrollbars globally */
+            ::-webkit-scrollbar {
+              display: none !important;
+            }
+            * {
+              -ms-overflow-style: none !important;  /* IE and Edge */
+              scrollbar-width: none !important;  /* Firefox */
+            }
+            
+            /* Remove default browser focus outlines */
+            input:focus, textarea:focus, select:focus, div:focus {
+              outline: none !important;
+              box-shadow: none !important;
+            }
+          `}} />
+        )}
         <AppContent />
       </AppProvider>
     </SafeAreaProvider>
@@ -899,6 +1142,46 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
   headerLeft: {
     flexDirection: 'column',
     justifyContent: 'center',
+  },
+  syncBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  syncBadgeOnline: {
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+  },
+  syncBadgeOffline: {
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+  },
+  syncBadgeConnecting: {
+    backgroundColor: 'rgba(156, 163, 175, 0.08)',
+    borderColor: 'rgba(156, 163, 175, 0.25)',
+  },
+  syncDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  syncDotOnline: {
+    backgroundColor: '#10b981',
+  },
+  syncDotOffline: {
+    backgroundColor: '#f59e0b',
+  },
+  syncDotConnecting: {
+    backgroundColor: '#9ca3af',
+  },
+  syncBadgeText: {
+    fontSize: 8.5,
+    fontWeight: 'bold',
+    color: colors.textSecondary,
   },
   headerTitle: {
     fontSize: 16,
@@ -1094,7 +1377,20 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
   cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  priorityTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  priorityTagText: {
+    fontSize: 9,
+    fontWeight: 'bold',
   },
   catTag: {
     paddingHorizontal: 8,
@@ -1232,6 +1528,25 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
+  },
+  priorityRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  priorityBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(15, 23, 42, 0.02)',
+  },
+  priorityBtnText: {
+    fontSize: 11.5,
+    fontWeight: 'bold',
   },
   catSelectPill: {
     paddingHorizontal: 12,
@@ -1418,5 +1733,171 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  desktopContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: colors.bgDeep,
+  },
+  mobileContainer: {
+    flex: 1,
+  },
+  sidebar: {
+    width: 280,
+    backgroundColor: colors.bgMain,
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
+    padding: 20,
+    justifyContent: 'flex-start',
+  },
+  sidebarHeader: {
+    marginBottom: 24,
+  },
+  sidebarTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  sidebarSubtitle: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 4,
+  },
+  sidebarAddButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  sidebarAddButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  sidebarStats: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(15, 23, 42, 0.02)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  sidebarSectionLabel: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  sidebarStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  sidebarStatCol: {
+    alignItems: 'center',
+  },
+  sidebarStatNum: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  sidebarStatLabel: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  sidebarStatDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: colors.border,
+  },
+  sidebarManageCatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.01)' : 'rgba(15, 23, 42, 0.01)',
+    marginBottom: 16,
+  },
+  sidebarManageCatText: {
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  sidebarFooter: {
+    marginTop: 'auto',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 16,
+  },
+  sidebarThemeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  sidebarThemeText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  mainContent: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  taskListContentDesktop: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  taskCardDesktop: {
+    width: '49%',
+  },
+  modalOverlayDesktop: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  keyboardAvoidDesktop: {
+    width: '100%',
+    maxWidth: 720,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  keyboardAvoidMobile: {
+    width: '100%',
+    justifyContent: 'flex-end',
+    flex: 1,
+  },
+  modalContainerDesktop: {
+    width: '100%',
+    borderRadius: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '95%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalBodyContentDesktop: {
+    flexDirection: 'row',
+    gap: 20,
+    paddingBottom: 10,
+  },
+  modalFormColLeft: {
+    flex: 1.1,
+  },
+  modalFormColRight: {
+    flex: 0.9,
+    gap: 4,
   },
 });

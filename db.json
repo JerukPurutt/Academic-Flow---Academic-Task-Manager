@@ -1,0 +1,43 @@
+{
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Bimbingan Bab 3 Skripsi",
+      "deadline": "2026-07-03T07:46:32.614Z",
+      "category": "Skripsi",
+      "completed": false,
+      "priority": "penting"
+    },
+    {
+      "id": "task-2",
+      "title": "Tugas Praktikum Jaringan Komputer",
+      "deadline": "2026-07-05T07:46:32.625Z",
+      "category": "Kuliah",
+      "completed": false,
+      "priority": "sedang"
+    }
+  ],
+  "categories": [
+    {
+      "id": "cat-skripsi",
+      "name": "Skripsi",
+      "color": "#ef4444"
+    },
+    {
+      "id": "cat-kuliah",
+      "name": "Kuliah",
+      "color": "#3b82f6"
+    },
+    {
+      "id": "cat-kompetisi",
+      "name": "Kompetisi",
+      "color": "#f59e0b"
+    },
+    {
+      "id": "cat-pribadi",
+      "name": "Pribadi",
+      "color": "#10b981"
+    }
+  ],
+  "lastUpdated": 1782899769809
+}
