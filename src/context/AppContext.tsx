@@ -233,6 +233,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (error) {
       console.log('Fetch from server failed:', error.message);
       setSyncStatus('offline');
+      throw error;
     }
   };
 
@@ -257,6 +258,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (error) {
       console.log('Push to server failed:', error.message);
       setSyncStatus('offline');
+      throw error;
     }
   };
 
@@ -265,14 +267,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { tasks: currTasks, categories: currCats, localLastUpdated: localUpd, lastSyncTime: lastSync, syncStatus: currStatus } = stateRef.current;
     
     try {
-      // Quick check if server is reachable (Google Apps Script)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const statusRes = await fetch(`${BACKEND_URL}?path=status`, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (!statusRes.ok) throw new Error('Status ping unsuccessful');
-      
-      // If server is reachable and we have local modifications not pushed yet
+      // If we have local modifications not pushed yet, push them
       if (localUpd > lastSync) {
         await pushToServer(currTasks, currCats);
       } else {
