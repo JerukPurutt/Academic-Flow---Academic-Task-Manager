@@ -115,14 +115,16 @@ function AppContent() {
   const completedTasks = tasks.filter(t => t.completed).length;
   const activeTasks = totalTasks - completedTasks;
 
-  // Filter Tasks
-  const filteredTasks = tasks.filter(task => {
-    const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCategory = selectedCategory === 'all' || task.category === selectedCategory;
-    const matchesPriority = selectedPriority === 'all' || task.priority === selectedPriority;
-    return matchesSearch && matchesCategory && matchesPriority;
-  });
+  // Filter & Sort Tasks: completed tasks should be at the bottom
+  const filteredTasks = tasks
+    .filter(task => {
+      const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesCategory = selectedCategory === 'all' || task.category === selectedCategory;
+      const matchesPriority = selectedPriority === 'all' || task.priority === selectedPriority;
+      return matchesSearch && matchesCategory && matchesPriority;
+    })
+    .sort((a, b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0));
 
   const handleOpenCreateModal = () => {
     setEditingTask(null);
