@@ -28,6 +28,20 @@ const COLOR_PRESETS = [
   '#06b6d4', // Cyan
 ];
 
+const toDatetimeLocalString = (date: Date): string => {
+  try {
+    const pad = (num: number) => String(num).padStart(2, '0');
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  } catch (e) {
+    return '';
+  }
+};
+
 function AppContent() {
   const { 
     tasks, 
@@ -270,6 +284,7 @@ function AppContent() {
         const newDate = new Date(deadline);
         newDate.setFullYear(selectedValue.getFullYear(), selectedValue.getMonth(), selectedValue.getDate());
         setDeadline(newDate);
+        setShowDatePicker(false); // Dismiss first to allow state update/unmount on Android
         setPickerMode('time');
         setTimeout(() => setShowDatePicker(true), 150);
       } else {
@@ -1069,19 +1084,49 @@ function AppContent() {
                 {hasDeadline && (
                   <View style={styles.formGroup}>
                     <Text style={styles.formLabel}>Waktu Pengingat *</Text>
-                    <TouchableOpacity style={styles.pickerTriggerButton} onPress={openPicker}>
-                      <Feather name="calendar" size={14} color={colors.textSecondary} />
-                      <Text style={styles.pickerTriggerText}>
-                        {deadline.toLocaleDateString('id-ID', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric'
-                        }) + ', pukul ' + deadline.toLocaleTimeString('id-ID', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        }).replace('.', ':')}
-                      </Text>
-                    </TouchableOpacity>
+                    {Platform.OS === 'web' ? (
+                      <input
+                        type="datetime-local"
+                        value={toDatetimeLocalString(deadline)}
+                        onChange={(e) => {
+                          const date = new Date(e.target.value);
+                          if (!isNaN(date.getTime())) {
+                            setDeadline(date);
+                          }
+                        }}
+                        style={{
+                          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(15, 23, 42, 0.02)',
+                          borderColor: colors.border,
+                          borderWidth: '1px',
+                          borderStyle: 'solid',
+                          borderRadius: '8px',
+                          paddingLeft: '12px',
+                          paddingRight: '12px',
+                          height: '40px',
+                          color: colors.textPrimary,
+                          fontSize: '13px',
+                          fontFamily: 'system-ui, -apple-system, sans-serif',
+                          outline: 'none',
+                          cursor: 'pointer',
+                          width: '100%',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    ) : (
+                      <TouchableOpacity style={styles.pickerTriggerButton} onPress={openPicker}>
+                        <Feather name="calendar" size={14} color={colors.textSecondary} />
+                        <Text style={styles.pickerTriggerText}>
+                          {deadline.toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric'
+                          }) + ', pukul ' + deadline.toLocaleTimeString('id-ID', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          }).replace('.', ':')}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
               </View>
