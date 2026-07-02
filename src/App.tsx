@@ -1085,33 +1085,87 @@ function AppContent() {
                   <View style={styles.formGroup}>
                     <Text style={styles.formLabel}>Waktu Pengingat *</Text>
                     {Platform.OS === 'web' ? (
-                      <input
-                        type="datetime-local"
-                        value={toDatetimeLocalString(deadline)}
-                        onChange={(e) => {
-                          const date = new Date(e.target.value);
-                          if (!isNaN(date.getTime())) {
-                            setDeadline(date);
-                          }
-                        }}
-                        style={{
-                          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(15, 23, 42, 0.02)',
-                          borderColor: colors.border,
-                          borderWidth: '1px',
-                          borderStyle: 'solid',
-                          borderRadius: '8px',
-                          paddingLeft: '12px',
-                          paddingRight: '12px',
-                          height: '40px',
-                          color: colors.textPrimary,
-                          fontSize: '13px',
-                          fontFamily: 'system-ui, -apple-system, sans-serif',
-                          outline: 'none',
-                          cursor: 'pointer',
-                          width: '100%',
-                          boxSizing: 'border-box',
-                        }}
-                      />
+                      <div style={{ position: 'relative', width: '100%' }}>
+                        {/* Beautiful Visual Button underneath */}
+                        <div
+                          style={{
+                            flexDirection: 'row',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(15, 23, 42, 0.02)',
+                            borderColor: colors.border,
+                            borderWidth: '1px',
+                            borderStyle: 'solid',
+                            borderRadius: '8px',
+                            paddingLeft: '12px',
+                            paddingRight: '12px',
+                            height: '40px',
+                            boxSizing: 'border-box',
+                            pointerEvents: 'none', // Clicking goes through to the input
+                          }}
+                        >
+                          {/* Calendar SVG Icon */}
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="14"
+                            height="14"
+                            stroke={colors.textSecondary}
+                            strokeWidth="2"
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                            <line x1="16" y1="2" x2="16" y2="6" />
+                            <line x1="8" y1="2" x2="8" y2="6" />
+                            <line x1="3" y1="10" x2="21" y2="10" />
+                          </svg>
+                          <span
+                            style={{
+                              color: colors.textPrimary,
+                              fontSize: '13px',
+                              fontFamily: 'system-ui, -apple-system, sans-serif',
+                            }}
+                          >
+                            {deadline.toLocaleDateString('id-ID', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric'
+                            }) + ', pukul ' + deadline.toLocaleTimeString('id-ID', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            }).replace('.', ':')}
+                          </span>
+                        </div>
+                        {/* Invisible clickable input on top */}
+                        <input
+                          type="datetime-local"
+                          value={toDatetimeLocalString(deadline)}
+                          onChange={(e) => {
+                            const date = new Date(e.target.value);
+                            if (!isNaN(date.getTime())) {
+                              setDeadline(date);
+                            }
+                          }}
+                          onClick={(e) => {
+                            try {
+                              e.currentTarget.showPicker();
+                            } catch (err) {
+                              console.log(err);
+                            }
+                          }}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            opacity: 0,
+                            cursor: 'pointer',
+                          }}
+                        />
+                      </div>
                     ) : (
                       <TouchableOpacity style={styles.pickerTriggerButton} onPress={openPicker}>
                         <Feather name="calendar" size={14} color={colors.textSecondary} />
