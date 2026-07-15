@@ -14,6 +14,7 @@ import { ValidationError } from './components/ValidationError';
 import { ConfirmModal } from './components/ConfirmModal';
 import { BackgroundTexture } from './components/BackgroundTexture';
 import { TaskDetailModal } from './components/TaskDetailModal';
+import { CalendarModal } from './components/CalendarModal';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from './theme';
 import type { ThemeColors } from './theme';
@@ -123,6 +124,7 @@ function AppContent() {
   // Date/Time picker helper state
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // Task Statistics
   const totalTasks = tasks.length;
@@ -151,6 +153,25 @@ function AppContent() {
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(12, 0, 0, 0);
     setDeadline(tomorrow);
+    setTitleError('');
+    setCategoryError('');
+    setIsModalOpen(true);
+  };
+
+  const handleAddTaskForDate = (date: Date) => {
+    setIsCalendarOpen(false);
+    setEditingTask(null);
+    setTitle('');
+    setDescription('');
+    setCategory(categories[0]?.name || 'Pribadi');
+    setPriority('sedang');
+    setHasDeadline(true);
+    
+    // Pre-populate with the tapped calendar date, set default hours to 12:00
+    const selectedDateWithTime = new Date(date);
+    selectedDateWithTime.setHours(12, 0, 0, 0);
+    setDeadline(selectedDateWithTime);
+    
     setTitleError('');
     setCategoryError('');
     setIsModalOpen(true);
@@ -345,13 +366,22 @@ function AppContent() {
               <View style={styles.sidebarHeader}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                   <Text style={styles.sidebarTitle}>Academic Flow</Text>
-                  <TouchableOpacity 
-                    onPress={toggleTheme} 
-                    style={styles.sidebarThemeIconBtn}
-                    activeOpacity={0.7}
-                  >
-                    <Feather name={isDark ? "sun" : "moon"} size={14} color={colors.textPrimary} />
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity 
+                      onPress={() => setIsCalendarOpen(true)} 
+                      style={styles.sidebarCalendarIconBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Feather name="calendar" size={14} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      onPress={toggleTheme} 
+                      style={styles.sidebarThemeIconBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Feather name={isDark ? "sun" : "moon"} size={14} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 <Text style={styles.sidebarSubtitle}>{getFormattedDate()}</Text>
                 
@@ -601,6 +631,14 @@ function AppContent() {
                     activeOpacity={0.8}
                   >
                     <Feather name="search" size={16} color={isSearchVisible ? colors.primary : colors.textSecondary} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    onPress={() => setIsCalendarOpen(true)} 
+                    style={styles.headerCalendarButton}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="calendar" size={16} color={colors.textSecondary} />
                   </TouchableOpacity>
 
                   <TouchableOpacity 
@@ -1389,6 +1427,24 @@ function AppContent() {
         onToggleComplete={(task) => {
           updateTask(task.id, { completed: !task.completed });
         }}
+      />
+
+      {/* Calendar Modal */}
+      <CalendarModal
+        visible={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+        tasks={tasks}
+        categories={categories}
+        colors={colors}
+        isDark={isDark}
+        onSelectTask={(id) => {
+          setIsCalendarOpen(false);
+          setSelectedTaskIdForDetail(id);
+        }}
+        onToggleCompleteTask={(id, completed) => {
+          updateTask(id, { completed });
+        }}
+        onAddTaskForDate={handleAddTaskForDate}
       />
 
       {/* Confirm Action Modal */}
@@ -2292,5 +2348,23 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
   modalFormColRight: {
     flex: 0.9,
     gap: 4,
+  },
+  sidebarCalendarIconBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(15, 23, 42, 0.04)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerCalendarButton: {
+    padding: 6,
+    borderRadius: 20,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(15, 23, 42, 0.04)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
