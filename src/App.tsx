@@ -1180,15 +1180,17 @@ function AppContent() {
                         <input
                           type="datetime-local"
                           value={toDatetimeLocalString(deadline)}
-                          onChange={(e) => {
+                          onChange={(e: any) => {
                             const date = new Date(e.target.value);
                             if (!isNaN(date.getTime())) {
                               setDeadline(date);
                             }
                           }}
-                          onClick={(e) => {
+                          onClick={(e: any) => {
                             try {
-                              e.currentTarget.showPicker();
+                              if (e.currentTarget && typeof e.currentTarget.showPicker === 'function') {
+                                e.currentTarget.showPicker();
+                              }
                             } catch (err) {
                               console.log(err);
                             }

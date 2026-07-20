@@ -218,7 +218,6 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
                   <View style={styles.calendarGrid}>
                     {gridDays.map((cell, index) => {
                       const cellTasks = getTasksForDate(cell.year, cell.month, cell.day);
-                      const activeCellTasks = cellTasks.filter(t => !t.completed);
                       const isCellToday = 
                         today.getDate() === cell.day && 
                         today.getMonth() === cell.month && 
@@ -259,7 +258,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
 
                           {/* Task Dots */}
                           <View style={styles.dotsRow}>
-                            {cellTasks.slice(0, 3).map((task, idx) => {
+                            {cellTasks.slice(0, 3).map((task) => {
                               const color = getCategoryColor(task.category);
                               return (
                                 <View 

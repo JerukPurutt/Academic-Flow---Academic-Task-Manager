@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Animated, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, Animated, useWindowDimensions } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { ThemeColors } from '../theme';
+import type { ThemeColors } from '../theme';
 
 interface ToastProps {
   message: string;
@@ -11,7 +11,7 @@ interface ToastProps {
   isDark: boolean;
 }
 
-export const Toast: React.FC<ToastProps> = ({ message, type, onClose, colors, isDark }) => {
+export const Toast: React.FC<ToastProps> = ({ message, type, onClose, isDark }) => {
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 800;
   const fadeAnim = useRef(new Animated.Value(0)).current;

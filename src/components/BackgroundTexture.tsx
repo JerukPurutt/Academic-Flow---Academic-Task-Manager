@@ -95,7 +95,7 @@ export const BackgroundTexture: React.FC<BackgroundTextureProps> = ({ isDark }) 
         `}} />
       )}
 
-      {Platform.OS === 'web' && <View className="dot-grid-bg" style={StyleSheet.absoluteFill} />}
+      {Platform.OS === 'web' && <View {...({ className: "dot-grid-bg" } as any)} style={StyleSheet.absoluteFill} />}
     </View>
   );
 };
