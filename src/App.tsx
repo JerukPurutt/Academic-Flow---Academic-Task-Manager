@@ -7,6 +7,7 @@ import {
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, FontAwesome5 } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppProvider, useApp } from './context/AppContext';
 import type { Task, Category, TaskPriority } from './context/AppContext';
 import { Toast } from './components/Toast';
@@ -127,6 +128,50 @@ function AppContent() {
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
+
+  // AI Smart Parser states
+  const [aiProvider, setAiProvider] = useState<'gemini' | 'ollama'>('gemini');
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [ollamaEndpoint, setOllamaEndpoint] = useState(Platform.OS === 'android' ? 'http://10.0.2.2:11434' : 'http://localhost:11434');
+  const [ollamaModel, setOllamaModel] = useState('llama3');
+  const [aiInput, setAiInput] = useState('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isAiSettingsVisible, setIsAiSettingsVisible] = useState(false);
+
+  useEffect(() => {
+    const loadAiConfig = async () => {
+      try {
+        const [savedProvider, savedKey, savedEndpoint, savedModel] = await Promise.all([
+          AsyncStorage.getItem('ai_parser_provider'),
+          AsyncStorage.getItem('ai_parser_gemini_key'),
+          AsyncStorage.getItem('ai_parser_ollama_endpoint'),
+          AsyncStorage.getItem('ai_parser_ollama_model'),
+        ]);
+        if (savedProvider === 'gemini' || savedProvider === 'ollama') {
+          setAiProvider(savedProvider);
+        }
+        if (savedKey) setGeminiApiKey(savedKey);
+        if (savedEndpoint) setOllamaEndpoint(savedEndpoint);
+        if (savedModel) setOllamaModel(savedModel);
+      } catch (err) {
+        console.error('Failed to load AI configs', err);
+      }
+    };
+    loadAiConfig();
+  }, []);
+
+  const saveAiConfig = async (provider: 'gemini' | 'ollama', key: string, endpoint: string, model: string) => {
+    try {
+      await Promise.all([
+        AsyncStorage.setItem('ai_parser_provider', provider),
+        AsyncStorage.setItem('ai_parser_gemini_key', key),
+        AsyncStorage.setItem('ai_parser_ollama_endpoint', endpoint),
+        AsyncStorage.setItem('ai_parser_ollama_model', model),
+      ]);
+    } catch (err) {
+      console.error('Failed to save AI configs', err);
+    }
+  };
 
   // Task Statistics
   const totalTasks = tasks.length;
@@ -255,6 +300,162 @@ function AppContent() {
     
     setCatNameInput('');
     setCategoryError('');
+  };
+
+  const handleParseAi = async () => {
+    const trimmedInput = aiInput.trim();
+    if (!trimmedInput) {
+      showToast('Teks input AI tidak boleh kosong!', 'warning');
+      return;
+    }
+
+    if (aiProvider === 'gemini' && !geminiApiKey.trim()) {
+      showToast('API Key Gemini belum diatur!', 'error');
+      setIsAiSettingsVisible(true);
+      return;
+    }
+
+    setIsAiLoading(true);
+    showToast('AI sedang memproses kalimat...', 'info');
+
+    // System instruction & prompt context
+    const currentCategoriesStr = categories.map(c => `"${c.name}"`).join(', ');
+    const currentISO = new Date().toISOString();
+    const systemPrompt = `You are a helpful academic task parser. Analyze the text representing a student's task and return a clean JSON object.
+Context:
+- Current Time/Date: ${currentISO} (Use this to calculate relative deadlines like "besok" (tomorrow), "senin depan" (next monday), "dua hari lagi", etc.)
+- Available Categories: [${currentCategoriesStr}, "Pribadi"] (Select the best matching category from this list. If none match, output "Pribadi".)
+- Available Priorities: "santai", "sedang", "penting" (Select the best urgency based on keywords like "darurat", "penting", "biasa", "santai").
+
+Return ONLY a JSON object with this exact shape:
+{
+  "title": "Clear concise title of the task",
+  "description": "Extra details, location, or instructions (or null)",
+  "category": "One of the available categories",
+  "deadline": "ISO String (YYYY-MM-DDTHH:mm:ss.sssZ) or null",
+  "priority": "santai" | "sedang" | "penting"
+}
+Do not include any explanation, backticks, or markdown formatting. Output raw JSON.`;
+
+    const userPrompt = `Parse this academic task: "${trimmedInput}"`;
+
+    try {
+      let parsedData: any = null;
+
+      if (aiProvider === 'gemini') {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey.trim()}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: systemPrompt },
+                  { text: userPrompt }
+                ]
+              }
+            ],
+            generationConfig: {
+              responseMimeType: 'application/json'
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Gemini Error: ${response.status} - ${errText}`);
+        }
+
+        const data = await response.json();
+        const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!textResult) throw new Error('Respon kosong dari Gemini');
+        parsedData = JSON.parse(textResult.trim());
+      } else {
+        // Local Ollama
+        const url = `${ollamaEndpoint.trim()}/api/generate`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: ollamaModel,
+            prompt: `${systemPrompt}\n\nTask text: ${userPrompt}\n\nReturn JSON:`,
+            stream: false,
+            format: 'json'
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Ollama Error: Status ${response.status}`);
+        }
+
+        const data = await response.json();
+        const textResult = data.response;
+        if (!textResult) throw new Error('Respon kosong dari Ollama');
+        
+        let jsonText = textResult.trim();
+        // Strip markdown backticks if present
+        if (jsonText.startsWith('```')) {
+          const lines = jsonText.split('\n');
+          let startIndex = 1;
+          if (lines[0].includes('json')) {
+            startIndex = 1;
+          }
+          jsonText = lines.slice(startIndex, lines.length - 1).join('\n').trim();
+        }
+        parsedData = JSON.parse(jsonText);
+      }
+
+      if (parsedData) {
+        // Auto-fill form fields
+        if (parsedData.title) setTitle(parsedData.title);
+        if (parsedData.description) setDescription(parsedData.description);
+        
+        // Handle Category
+        if (parsedData.category) {
+          const matchedCat = categories.find(c => c.name.toLowerCase() === parsedData.category.toLowerCase());
+          if (matchedCat) {
+            setCategory(matchedCat.name);
+          } else {
+            setCategory(categories[0]?.name || 'Pribadi');
+          }
+        }
+        
+        // Handle Priority
+        if (parsedData.priority) {
+          const val = parsedData.priority.toLowerCase();
+          if (val === 'penting' || val === 'sedang' || val === 'santai') {
+            setPriority(val);
+          }
+        }
+        
+        // Handle Deadline
+        if (parsedData.deadline) {
+          const dlDate = new Date(parsedData.deadline);
+          if (!isNaN(dlDate.getTime())) {
+            setDeadline(dlDate);
+            setHasDeadline(true);
+          } else {
+            setHasDeadline(false);
+          }
+        } else {
+          setHasDeadline(false);
+        }
+
+        showToast('Formulir berhasil diisi oleh AI!', 'success');
+        setAiInput(''); // Clear input on success
+      }
+    } catch (error: any) {
+      console.error(error);
+      showToast(`Gagal memproses AI: ${error.message || error}`, 'error');
+    } finally {
+      setIsAiLoading(false);
+    }
   };
 
   const handleSubmit = () => {
@@ -998,6 +1199,118 @@ function AppContent() {
               showsVerticalScrollIndicator={false}
               contentContainerStyle={isLargeScreen ? styles.modalBodyContentDesktop : null}
             >
+              {/* AI Smart Parser Panel */}
+              <View style={styles.aiPanel}>
+                <View style={styles.aiPanelHeader}>
+                  <View style={styles.aiPanelTitleRow}>
+                    <Feather name="cpu" size={13} color={colors.primary} />
+                    <Text style={styles.aiPanelTitle}>Tulis Cepat dengan AI</Text>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={() => setIsAiSettingsVisible(!isAiSettingsVisible)} 
+                    style={styles.aiSettingsBtn}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="sliders" size={12} color={isAiSettingsVisible ? colors.primary : colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* AI Input & Process Button */}
+                <View style={styles.aiInputRow}>
+                  <TextInput
+                    style={styles.aiTextInput}
+                    placeholder={aiProvider === 'gemini' ? "Contoh: Tugas Jarkom kuis besok jam 8 pagi, sedang" : "Ollama: kuis besok jam 8 pagi..."}
+                    placeholderTextColor={colors.textMuted}
+                    value={aiInput}
+                    onChangeText={setAiInput}
+                    editable={!isAiLoading}
+                  />
+                  <TouchableOpacity 
+                    style={[styles.aiProcessBtn, { backgroundColor: isAiLoading ? colors.border : colors.primary }]}
+                    onPress={handleParseAi}
+                    disabled={isAiLoading}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.aiProcessBtnText}>
+                      {isAiLoading ? '...' : 'Proses'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* AI Settings Sub-Panel */}
+                {isAiSettingsVisible && (
+                  <View style={styles.aiSettingsPanel}>
+                    <Text style={styles.aiSettingsLabel}>Pilih Provider AI</Text>
+                    <View style={styles.aiProviderTabs}>
+                      <TouchableOpacity 
+                        style={[styles.aiProviderTab, aiProvider === 'gemini' && styles.aiProviderTabActive]} 
+                        onPress={() => {
+                          setAiProvider('gemini');
+                          saveAiConfig('gemini', geminiApiKey, ollamaEndpoint, ollamaModel);
+                        }}
+                      >
+                        <Text style={[styles.aiProviderTabText, aiProvider === 'gemini' && styles.aiProviderTabTextActive]}>
+                          Gemini Cloud (Google)
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.aiProviderTab, aiProvider === 'ollama' && styles.aiProviderTabActive]} 
+                        onPress={() => {
+                          setAiProvider('ollama');
+                          saveAiConfig('ollama', geminiApiKey, ollamaEndpoint, ollamaModel);
+                        }}
+                      >
+                        <Text style={[styles.aiProviderTabText, aiProvider === 'ollama' && styles.aiProviderTabTextActive]}>
+                          Ollama (Lokal)
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {aiProvider === 'gemini' ? (
+                      <View>
+                        <Text style={styles.aiSettingsLabel}>Gemini API Key</Text>
+                        <TextInput
+                          style={styles.aiSettingsInput}
+                          placeholder="Masukkan API Key dari Google AI Studio..."
+                          placeholderTextColor={colors.textMuted}
+                          value={geminiApiKey}
+                          onChangeText={(val) => {
+                            setGeminiApiKey(val);
+                            saveAiConfig('gemini', val, ollamaEndpoint, ollamaModel);
+                          }}
+                          secureTextEntry={true}
+                        />
+                      </View>
+                    ) : (
+                      <View>
+                        <Text style={styles.aiSettingsLabel}>Ollama Server Endpoint</Text>
+                        <TextInput
+                          style={styles.aiSettingsInput}
+                          placeholder="Contoh: http://localhost:11434..."
+                          placeholderTextColor={colors.textMuted}
+                          value={ollamaEndpoint}
+                          onChangeText={(val) => {
+                            setOllamaEndpoint(val);
+                            saveAiConfig('ollama', geminiApiKey, val, ollamaModel);
+                          }}
+                        />
+                        <Text style={styles.aiSettingsLabel}>Nama Model Ollama</Text>
+                        <TextInput
+                          style={styles.aiSettingsInput}
+                          placeholder="Contoh: llama3, gemma2, qwen2..."
+                          placeholderTextColor={colors.textMuted}
+                          value={ollamaModel}
+                          onChangeText={(val) => {
+                            setOllamaModel(val);
+                            saveAiConfig('ollama', geminiApiKey, ollamaEndpoint, val);
+                          }}
+                        />
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+
               {/* LEFT COLUMN FOR DESKTOP, STANDARD FLOW FOR MOBILE */}
               <View style={isLargeScreen ? styles.modalFormColLeft : null}>
                 {/* Task Title */}
@@ -2399,5 +2712,116 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  aiPanel: {
+    backgroundColor: isDark ? 'rgba(99, 102, 241, 0.05)' : 'rgba(79, 70, 229, 0.04)',
+    borderColor: isDark ? 'rgba(99, 102, 241, 0.2)' : 'rgba(79, 70, 229, 0.15)',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    width: '100%',
+  },
+  aiPanelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  aiPanelTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  aiPanelTitle: {
+    fontSize: 12.5,
+    fontWeight: 'bold',
+    color: colors.primary,
+  },
+  aiSettingsBtn: {
+    padding: 2,
+  },
+  aiInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  aiTextInput: {
+    flex: 1,
+    height: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgMain,
+    paddingHorizontal: 10,
+    fontSize: 12.5,
+    color: colors.textPrimary,
+  },
+  aiProcessBtn: {
+    height: 38,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  aiProcessBtnText: {
+    color: '#fff',
+    fontSize: 12.5,
+    fontWeight: 'bold',
+  },
+  aiSettingsPanel: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: 8,
+  },
+  aiProviderTabs: {
+    flexDirection: 'row',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(15, 23, 42, 0.04)',
+    borderRadius: 8,
+    padding: 2,
+    marginBottom: 4,
+  },
+  aiProviderTab: {
+    flex: 1,
+    paddingVertical: 6,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  aiProviderTabActive: {
+    backgroundColor: colors.bgMain,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  aiProviderTabText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  aiProviderTabTextActive: {
+    color: colors.primary,
+    fontWeight: 'bold',
+  },
+  aiSettingsLabel: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: colors.textSecondary,
+    marginBottom: 3,
+  },
+  aiSettingsInput: {
+    height: 34,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgMain,
+    paddingHorizontal: 8,
+    fontSize: 12,
+    color: colors.textPrimary,
+    marginBottom: 8,
   },
 });
