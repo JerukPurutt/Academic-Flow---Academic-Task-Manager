@@ -15,6 +15,7 @@ import { ConfirmModal } from './components/ConfirmModal';
 import { BackgroundTexture } from './components/BackgroundTexture';
 import { TaskDetailModal } from './components/TaskDetailModal';
 import { CalendarModal } from './components/CalendarModal';
+import { StatsModal } from './components/StatsModal';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from './theme';
 import type { ThemeColors } from './theme';
@@ -125,6 +126,7 @@ function AppContent() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isStatsOpen, setIsStatsOpen] = useState(false);
 
   // Task Statistics
   const totalTasks = tasks.length;
@@ -427,8 +429,15 @@ function AppContent() {
               </TouchableOpacity>
 
               {/* Statistik Panel */}
-              <View style={styles.sidebarStats}>
-                <Text style={styles.sidebarSectionLabel}>Statistik Tugas</Text>
+              <TouchableOpacity 
+                style={styles.sidebarStats}
+                onPress={() => setIsStatsOpen(true)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={styles.sidebarSectionLabel}>Statistik Tugas</Text>
+                  <Feather name="bar-chart-2" size={12} color={colors.textSecondary} />
+                </View>
                 <View style={styles.sidebarStatsRow}>
                   <View style={styles.sidebarStatCol}>
                     <Text style={styles.sidebarStatNum}>{activeTasks}</Text>
@@ -440,7 +449,7 @@ function AppContent() {
                     <Text style={styles.sidebarStatLabel}>Selesai</Text>
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
 
               {/* Tombol Kelola Kategori */}
               <TouchableOpacity 
@@ -649,7 +658,19 @@ function AppContent() {
                     <Feather name={isDark ? "sun" : "moon"} size={16} color={colors.textSecondary} />
                   </TouchableOpacity>
 
-                  <View style={styles.statsCapsule}>
+                  <TouchableOpacity 
+                    onPress={() => setIsStatsOpen(true)} 
+                    style={styles.headerThemeButton}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="bar-chart-2" size={16} color={colors.textSecondary} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    onPress={() => setIsStatsOpen(true)}
+                    style={styles.statsCapsule}
+                    activeOpacity={0.8}
+                  >
                     <View style={styles.statsSegment}>
                       <Feather name="clock" size={11} color={colors.primary} />
                       <Text style={styles.statsNumber}>{activeTasks}</Text>
@@ -659,7 +680,7 @@ function AppContent() {
                       <Feather name="check-circle" size={11} color={colors.success} />
                       <Text style={[styles.statsNumber, { color: colors.success }]}>{completedTasks}</Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -1447,6 +1468,16 @@ function AppContent() {
           updateTask(id, { completed });
         }}
         onAddTaskForDate={handleAddTaskForDate}
+      />
+
+      {/* Stats Modal */}
+      <StatsModal
+        visible={isStatsOpen}
+        onClose={() => setIsStatsOpen(false)}
+        tasks={tasks}
+        categories={categories}
+        colors={colors}
+        isDark={isDark}
       />
 
       {/* Confirm Action Modal */}
