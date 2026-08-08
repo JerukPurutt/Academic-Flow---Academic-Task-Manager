@@ -1311,8 +1311,10 @@ Do not include any explanation, backticks, or markdown formatting. Output raw JS
                 )}
               </View>
 
-              {/* LEFT COLUMN FOR DESKTOP, STANDARD FLOW FOR MOBILE */}
-              <View style={isLargeScreen ? styles.modalFormColLeft : null}>
+              {/* columns wrapper for desktop/mobile responsive flow */}
+              <View style={isLargeScreen ? styles.modalFormColumnsDesktop : null}>
+                {/* LEFT COLUMN FOR DESKTOP, STANDARD FLOW FOR MOBILE */}
+                <View style={isLargeScreen ? styles.modalFormColLeft : null}>
                 {/* Task Title */}
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Judul Tugas / Pengingat *</Text>
@@ -1557,6 +1559,7 @@ Do not include any explanation, backticks, or markdown formatting. Output raw JS
                     )}
                   </View>
                 )}
+              </View>
               </View>
             </ScrollView>
 
@@ -2684,9 +2687,11 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
     elevation: 10,
   },
   modalBodyContentDesktop: {
+    paddingBottom: 10,
+  },
+  modalFormColumnsDesktop: {
     flexDirection: 'row',
     gap: 20,
-    paddingBottom: 10,
   },
   modalFormColLeft: {
     flex: 1.1,
